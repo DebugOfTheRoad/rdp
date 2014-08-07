@@ -1,0 +1,132 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{9255BEBC-BA52-4F7E-B0BB-2D7BEBA23EF7}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>rdp2</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v120</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>WIN32;
+_DEBUG;
+_CONSOLE;
+_LIB;
+%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>../../deps/pthread-2.9.1/include;
+</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>../../deps\pthread-2.9.1\lib\x86</AdditionalLibraryDirectories>
+      <AdditionalDependencies>pthreadVC2.lib;
+%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>WIN32;
+NDEBUG;
+_CONSOLE;
+_LIB;
+%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\alloc.cpp" />
+    <ClCompile Include="..\src\buffer.cpp" />
+    <ClCompile Include="..\src\core.cpp" />
+    <ClCompile Include="..\src\epoll.cpp" />
+    <ClCompile Include="..\src\iocp.cpp" />
+    <ClCompile Include="..\src\rdp.cpp" />
+    <ClCompile Include="..\src\send.cpp" />
+    <ClCompile Include="..\src\session.cpp" />
+    <ClCompile Include="..\src\socket.cpp" />
+    <ClCompile Include="..\src\socket_api.cpp" />
+    <ClCompile Include="..\src\test.cpp" />
+    <ClCompile Include="..\src\test.h" />
+    <ClCompile Include="..\src\thread.cpp" />
+    <ClCompile Include="..\src\timer.cpp" />
+    <ClCompile Include="..\src\window.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\include\lint.h" />
+    <ClInclude Include="..\include\platform.h" />
+    <ClInclude Include="..\include\rdp.h" />
+    <ClInclude Include="..\include\rdp_def.h" />
+    <ClInclude Include="..\src\alloc.h" />
+    <ClInclude Include="..\src\buffer.h" />
+    <ClInclude Include="..\src\core.h" />
+    <ClInclude Include="..\src\epoll.h" />
+    <ClInclude Include="..\src\iocp.h" />
+    <ClInclude Include="..\src\protocol.h" />
+    <ClInclude Include="..\src\recv_buffer.h" />
+    <ClInclude Include="..\src\recv.h" />
+    <ClInclude Include="..\src\send_buffer.h" />
+    <ClInclude Include="..\src\send.h" />
+    <ClInclude Include="..\src\session.h" />
+    <ClInclude Include="..\src\socket.h" />
+    <ClInclude Include="..\src\socket_api.h" />
+    <ClInclude Include="..\src\thread.h" />
+    <ClInclude Include="..\src\timer.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
