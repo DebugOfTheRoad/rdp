@@ -5,8 +5,25 @@
 #include "rdp_def.h"
 #include "platform.h"
 
-#define RDP_API
 
+#if defined PLATFORM_OS_WINDOWS
+#ifndef __MINGW__
+#ifdef RDP_EXPORTS
+#define RDP_API __declspec(dllexport)
+#else
+#define RDP_API  
+#endif
+#else
+#define RDP_API
+#endif
+#else
+#define RDP_API __attribute__ ((visibility("default")))
+#endif
+ 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
 RDP_API i32 rdp_startup(rdp_startup_param* param);
 RDP_API i32 rdp_startup_get_param(rdp_startup_param* param);
 RDP_API i32 rdp_cleanup();
@@ -32,5 +49,7 @@ RDP_API bool rdp_session_is_income(RDPSESSIONID session_id);
 RDP_API i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui32 buf_len);
 
 RDP_API i32 rdp_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port);
-
+#ifdef __cplusplus
+}
+#endif
 #endif
