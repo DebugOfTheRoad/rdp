@@ -4,5 +4,6 @@
 #include "../include/lint.h"
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
+#include "config.h"
 
 #endif

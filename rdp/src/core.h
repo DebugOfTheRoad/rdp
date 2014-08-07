@@ -4,6 +4,7 @@
 #include "../include/lint.h"
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
+#include "config.h"
 
 i32 core_startup(rdp_startup_param* param);
 i32 core_startup_get_param(rdp_startup_param* param);

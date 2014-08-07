@@ -4,6 +4,7 @@
 #include "../include/lint.h"
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
+#include "config.h"
 
 #define IP_HEAD_SIZE 20
 #define UDP_HEAD_SIZE 8

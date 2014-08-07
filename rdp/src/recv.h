@@ -4,7 +4,9 @@
 #include "../include/lint.h"
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
+#include "config.h"
 #include "socket.h"
+
  
 typedef struct recv_result {
     SOCKET    sock;
