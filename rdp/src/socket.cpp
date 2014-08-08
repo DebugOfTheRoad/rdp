@@ -11,6 +11,7 @@
 
 
 void socket_recv_result_callback(thread_handle handle, recv_result* result);
+void socket_recv_result_timeout(thread_handle handle, const timer_val& tv);
 
 typedef union sessionid {
     RDPSESSIONID sid;
@@ -33,14 +34,18 @@ static RDPSESSIONID socket_session_make_sessionid(bool income, addrhash addr_has
 typedef std::map<addrhash, session*> session_list;
 
 struct session_hash_bucket {
+    bool         checkflag;
+    mutex_handle lock;
     session_list sess_list;
+
+    session_hash_bucket(){
+        checkflag = false;
+        lock = 0;
+    }
 };
 struct session_hash {
     ui32                  bucket_size;
     session_hash_bucket*  bucket;
-
-    ui32                  lock_size;
-    mutex_handle*         lock;
 };
 
 typedef struct socket_info_ex : public socket_info {
@@ -53,6 +58,8 @@ typedef struct socket_info_ex : public socket_info {
     //session_hash 使用自身锁，不使用socket_info锁
     session_hash      sess_in;
     session_hash      sess_out;
+
+    bool              checkflag;
 } socket_info_ex;
 
 bool socket_session_get_lock_and_addrhash(const session_hash& hash, RDPSESSIONID session_id, mutex_handle& lock_out, ui64& addr_hash);
@@ -117,6 +124,7 @@ i32 socket_startup(rdp_startup_param* param)
         if (param->recv_buf_size == 0) {
             param->recv_buf_size = 4 * 1024;
         }
+
         s_socket_startup_param = *param;
 
         for (ui32 i = 0; i < param->max_sock; ++i) {
@@ -137,9 +145,9 @@ i32 socket_startup(rdp_startup_param* param)
         if (ret != RDPERROR_SUCCESS) {
             break;
         }
-        ret = iocp_create(socket_recv_result_callback);
+        ret = iocp_create(socket_recv_result_callback, socket_recv_result_timeout);
 #else
-        ret = epoll_create(socket_recv_result_callback);
+        ret = epoll_create(socket_recv_result_callback, socket_recv_result_timeout);
 #endif
         if (ret != RDPERROR_SUCCESS) {
             break;
@@ -188,21 +196,20 @@ i32 socket_create(rdp_socket_create_param* param, socket_handle* handle)
             ret = RDPERROR_INVALIDPARAM;
             break;
         }
+
+        if (param->ack_timeout == 0) {
+            param->ack_timeout = 300;
+        }
+        if (param->heart_beat_timeout == 0) {
+            param->heart_beat_timeout = 180;
+        }
         if (param->in_session_hash_size == 0) {
             param->in_session_hash_size = 1;
         }
         if (param->out_session_hash_size == 0) {
             param->out_session_hash_size = 1;
         }
-        if (param->in_session_hash_lock_sessions == 0) {
-            param->in_session_hash_lock_sessions = 4 * 1024;
-        }
-        if (param->out_session_hash_lock_sessions == 0) {
-            param->out_session_hash_lock_sessions = 4 * 1024;
-        }
-        if (param->max_recv_queue_size == 0) {
-            param->max_recv_queue_size = 1024;
-        }
+
         sock = socket_api_create(param->v4);
         if (sock == INVALID_SOCKET) {
             ret = RDPERROR_SYSERROR;
@@ -236,6 +243,7 @@ i32 socket_create(rdp_socket_create_param* param, socket_handle* handle)
         so->sess_in.bucket = 0;
         so->sess_out.bucket_size = param->out_session_hash_size;
         so->sess_out.bucket = 0;
+        so->checkflag = false;
 
         if (so->sess_in.bucket_size > 0) {
             so->sess_in.bucket = new session_hash_bucket[so->sess_in.bucket_size];
@@ -243,19 +251,14 @@ i32 socket_create(rdp_socket_create_param* param, socket_handle* handle)
         if (so->sess_out.bucket_size > 0) {
             so->sess_out.bucket = new session_hash_bucket[so->sess_out.bucket_size] ;
         }
-        so->sess_in.lock_size = param->in_session_hash_size / param->in_session_hash_lock_sessions + 1;
-        so->sess_out.lock_size = param->out_session_hash_size / param->out_session_hash_lock_sessions + 1;
-        so->sess_in.lock = new mutex_handle[so->sess_in.lock_size];
-        so->sess_out.lock = new mutex_handle[so->sess_out.lock_size];
-
-        for (ui32 i = 0; i < so->sess_in.lock_size; ++i) {
-            so->sess_in.lock[i] = mutex_create();
+        for (ui32 i = 0; i < so->sess_in.bucket_size; ++i) {
+            so->sess_in.bucket[i].lock = mutex_create();
         }
-        for (ui32 i = 0; i < so->sess_out.lock_size; ++i) {
-            so->sess_out.lock[i] = mutex_create();
+        for (ui32 i = 0; i < so->sess_out.bucket_size; ++i) {
+            so->sess_out.bucket[i].lock = mutex_create();
         }
-
     } while (0);
+
     if (!(*handle) && sock != INVALID_SOCKET) {
         socket_api_close(sock);
     }
@@ -340,24 +343,11 @@ i32 socket_destroy(socket_handle handle)
                 session_destroy(sess);
             }
             bucket.sess_list.clear();
+            mutex_destroy(bucket.lock);
         }
         delete[]so->sess_out.bucket;
         so->sess_out.bucket = 0;
         sess_out.bucket_size = 0;
-
-        for (ui32 i = 0; i < sess_in.lock_size; ++i) {
-            mutex_destroy(sess_in.lock[i]);
-        }
-        delete[]sess_in.lock;
-        sess_in.lock = 0;
-        sess_in.lock_size = 0;
-
-        for (ui32 i = 0; i < sess_out.lock_size; ++i) {
-            mutex_destroy(sess_out.lock[i]);
-        }
-        delete[]sess_out.lock;
-        sess_out.lock = 0;
-        sess_out.lock_size = 0;
 
         so->state = RDPSOCKETSTATUS_NONE;
 
@@ -446,7 +436,7 @@ i32 socket_listen(socket_handle handle)
     return  ret;
 }
 i32 socket_connect(socket_handle handle, const char* ip, ui32 port, ui32 timeout,
-                   RDPSESSIONID* session_id, const ui8* buf, ui32 buf_len)
+                   RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len)
 {
     i32 ret = RDPERROR_SUCCESS;
 
@@ -492,6 +482,7 @@ i32 socket_connect(socket_handle handle, const char* ip, ui32 port, ui32 timeout
         addrhash addr_hash = socket_api_addr_hash(addr);
         if (addr_hash == 0) {
             ret = RDPERROR_INVALIDPARAM;
+            socket_api_addr_destroy(addr);
             mutex_unlock(so->lock);
             break;
         }
@@ -517,6 +508,7 @@ i32 socket_connect(socket_handle handle, const char* ip, ui32 port, ui32 timeout
         }
         socket_api_addr_destroy(addr);
         //开始连接
+        sess->state = RDPSESSIONSTATUS_CONNECTING;
         ret = session_send_connect(sess, buf, buf_len);
 
         mutex_unlock(so->lock);
@@ -538,7 +530,7 @@ i32 socket_getsyserrordesc(i32 err, char* desc, ui32 desc_len)
             ret =  RDPERROR_INVALIDPARAM;
             break;
         }
-        
+
         desc[0] = 0;
 
 #if !defined(PLATFORM_OS_WINDOWS)
@@ -633,8 +625,8 @@ i32 socket_session_get_state(socket_handle handle, RDPSESSIONID session_id, ui32
 
     return ret;
 }
-i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8* buf, ui32 buf_len,
-                        bool need_ack, bool in_order,
+i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
+                        ui32 flags,
                         ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size)
 {
     i32 ret = RDPERROR_SUCCESS;
@@ -650,12 +642,13 @@ i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8
             break;
         }
         mutex_lock(so->lock);
-        if (so->state == RDPSOCKETSTATUS_NONE) {
+        if (so->state == RDPSOCKETSTATUS_NONE ||
+                so->state == RDPSOCKETSTATUS_CLOSING) {
             ret = RDPERROR_SOCKET_INVALIDSOCKET;
             mutex_unlock(so->lock);
             break;
         }
-        if (so->state < RDPSOCKETSTATUS_BINDED) {
+        if (so->state == RDPSOCKETSTATUS_INIT) {
             ret = RDPERROR_SOCKET_BADSTATE;
             mutex_unlock(so->lock);
             break;
@@ -675,7 +668,7 @@ i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8
             mutex_unlock(so->lock);
             break;
         }
-        ret = session_send_data(sess, buf, buf_len, need_ack, in_order, local_send_queue_size, peer_unused_recv_queue_size);
+        ret = session_send_data(sess, buf, buf_len, flags, local_send_queue_size, peer_unused_recv_queue_size);
 
         mutex_unlock(lock);
         mutex_unlock(so->lock);
@@ -692,7 +685,7 @@ bool socket_session_is_income(RDPSESSIONID session_id)
     sid.sid = session_id;
     return (bool)sid._sid.is_income;
 }
-i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* buf, ui32 buf_len)
+i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
 {
     i32 ret = RDPERROR_SUCCESS;
 
@@ -717,7 +710,8 @@ i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* 
             break;
         }
         //检查状态
-        if (so->state == RDPSOCKETSTATUS_NONE || so->state == RDPSOCKETSTATUS_CLOSING) {
+        if (so->state == RDPSOCKETSTATUS_NONE ||
+                so->state == RDPSOCKETSTATUS_CLOSING) {
             ret = RDPERROR_SOCKET_INVALIDSOCKET;
             mutex_unlock(so->lock);
             break;
@@ -739,8 +733,8 @@ i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* 
         }
 
         protocol_udp_data pack;
-        pack.seq_num = 0;
         pack.data_size = buf_len;
+        protocol_set_header(&pack);
 
         send_buffer_ex sb;
         memset(&sb, 0, sizeof(send_buffer_ex));
@@ -754,7 +748,7 @@ i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* 
         sb.seq_num = 0;
         sb.send_times = 1;
 
-        send_send(&sb);
+        ret = send_send(&sb);
 
         buffer_destroy(sb.buf);
         socket_api_addr_destroy(sb.addr);
@@ -822,20 +816,20 @@ void socket_recv_result_callback(thread_handle handle, recv_result* result)
         //    ip, port, ph->protocol, (ui32)ph->protocol_id, (ui32)ph->seq_num);
 
         //检查是否是rdp协议
-        if (ph->protocol != RDP_PROTOCOL) {
-            printf("unknown protocol %d\n", ph->protocol);
+        if (!protocol_check_header(ph, result->buf.length)) {
+            printf("protocol check header failed\n");
             ret = RDPERROR_UNKNOWN;
             mutex_unlock(so->lock);
             break;
         }
-        if (ph->protocol_id >= proto_end) {
-            printf("bad protocol id %d\n", ph->protocol_id);
+        if (ph->protocol >= proto_end) {
+            printf("bad protocol id %d\n", ph->protocol);
             ret = RDPERROR_UNKNOWN;
             mutex_unlock(so->lock);
             break;
         }
 
-        if (ph->protocol_id != proto_udp_data) {
+        if (ph->protocol != proto_udp_data) {
             ui64 addr_hash = socket_api_addr_hash(result->addr);
             if (addr_hash == 0) {
                 ret = RDPERROR_UNKNOWN;
@@ -855,7 +849,7 @@ void socket_recv_result_callback(thread_handle handle, recv_result* result)
             //不存在的会话
             if (!sess) {
                 //检查是否是连接请求,如果是,创建新回话
-                if (ph->protocol_id != proto_connect ) {
+                if (ph->protocol != proto_connect) {
                     ret = RDPERROR_UNKNOWN;
                     mutex_unlock(so->lock);
                     break;
@@ -904,9 +898,12 @@ void socket_recv_result_callback(thread_handle handle, recv_result* result)
                 break;
             }
             session_handle_recv(sess, result);
+            if (sess->state == RDPSESSIONSTATUS_DISCONNECTING) {
+                bool income = socket_session_is_income(sess->session_id);
+                socket_session_close_from(income ? so->sess_in : so->sess_out, sess->session_id);
+            }
             mutex_unlock(lock);
         } else {
-            //将请求交给session处理
             protocol_udp_data* p = (protocol_udp_data*)ph;
 
             rdp_on_udp_recv_param param;
@@ -928,7 +925,40 @@ void socket_recv_result_callback(thread_handle handle, recv_result* result)
 
     }
 }
+void socket_recv_result_timeout(thread_handle handle, const timer_val& tv)
+{
+    ui64 addr_hash = 0;
+    socket_info_ex* so = 0;
+    for (ui16 i = 0; i < s_socket_startup_param.max_sock; ++i) {
+        socket_info_ex& s = s_socket_list[i];
+        if (s.state != RDPSOCKETSTATUS_BINDED &&
+            s.state != RDPSOCKETSTATUS_LISTENING) {
+            break;
+        }
+        if (s.checkflag){
+            continue;
+        }
+        session_hash& sess_in = s.sess_in;
+        session_hash& sess_out = s.sess_out;
+        for (ui32 i = 0; i < sess_in.bucket_size; ++i) {
+            session_hash_bucket& bucket = sess_in.bucket[i];
+            if (bucket.checkflag) {
+                continue;
+            }
+            if (mutex_trylock(bucket.lock)) {
+                session_list::iterator it = bucket.sess_list.begin();
+                session_list::iterator end = bucket.sess_list.end();
 
+                for (; it != end; ++it) {
+                    session* sess = it->second;
+                    session_send_check(sess, tv);
+                }
+                mutex_unlock(bucket.lock);
+            }
+        }
+    }
+
+}
 bool socket_session_get_lock_and_addrhash(const session_hash& hash, RDPSESSIONID session_id, mutex_handle& lock_out, ui64& addr_hash)
 {
     if (session_id == 0) {
@@ -937,8 +967,8 @@ bool socket_session_get_lock_and_addrhash(const session_hash& hash, RDPSESSIONID
     sessionid sid;
     sid.sid = session_id;
     addr_hash = sid._sid.addr_hash;
-    i32 lock_index = addr_hash % hash.lock_size;
-    hash.lock[lock_index];
+    i32 lock_index = addr_hash % hash.bucket_size;
+    hash.bucket[lock_index].lock;
     return true;
 }
 session* socket_session_get_from(const session_hash& hash, RDPSESSIONID session_id, mutex_handle& lock_out)

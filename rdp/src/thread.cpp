@@ -204,6 +204,18 @@ void mutex_destroy(mutex_handle lock)
 #endif
     alloc_delete_object(mutex);
 }
+bool mutex_trylock(mutex_handle lock)
+{
+    if (!lock) {
+        return false;
+    }
+    MUTEX_HANDLE* mutex = (MUTEX_HANDLE*)lock;
+#ifdef USE_PTHREAD
+    return 0 == pthread_mutex_trylock(mutex);
+#else
+    return TRUE == ::TryEnterCriticalSection(mutex);
+#endif
+}
 void mutex_lock(mutex_handle lock)
 {
     if (!lock) {

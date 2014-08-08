@@ -54,6 +54,12 @@
     <ClCompile Include="..\src\send.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\protocol.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\recv_buffer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\alloc.h">

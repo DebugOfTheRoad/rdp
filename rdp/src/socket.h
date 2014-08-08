@@ -43,18 +43,18 @@ i32 socket_destroy(socket_handle handle);
 i32 socket_bind(socket_handle handle, const char* ip, ui32 port);
 i32 socket_listen(socket_handle handle);
 i32 socket_connect(socket_handle handle, const char* ip, ui32 port, ui32 timeout, 
-    RDPSESSIONID* session_id, const ui8* buf, ui32 buf_len);
+    RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len);
 
 i32 socket_getsyserror();
 i32 socket_getsyserrordesc(i32 err, char* desc, ui32 desc_len);
 i32 socket_session_close(socket_handle handle, RDPSESSIONID session_id);
 i32 socket_session_get_state(socket_handle handle, RDPSESSIONID session_id, ui32* state);
-i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8* buf, ui32 buf_len,
-    bool need_ack, bool in_order,
+i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
+    ui32 flags,
     ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size);
 bool socket_session_is_income(RDPSESSIONID session_id);
 
-i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* buf, ui32 buf_len);
+i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* buf, ui16 buf_len);
 
 i32 socket_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port);
 

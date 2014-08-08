@@ -12,9 +12,10 @@ typedef struct recv_result {
     SOCKET    sock;
     sockaddr* addr;
     buffer    buf;
+    timer_val tv;   
 } recv_result;
  
-typedef void(*recv_result_timeout)(thread_handle);
+typedef void(*recv_result_timeout)(thread_handle, const timer_val&);
 typedef void(*recv_result_callback) (thread_handle handle, recv_result*);
 
 #endif

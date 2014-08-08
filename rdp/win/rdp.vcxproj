@@ -95,7 +95,9 @@ DLL;RDP_EXPORTS;
     <ClCompile Include="..\src\core.cpp" />
     <ClCompile Include="..\src\epoll.cpp" />
     <ClCompile Include="..\src\iocp.cpp" />
+    <ClCompile Include="..\src\protocol.cpp" />
     <ClCompile Include="..\src\rdp.cpp" />
+    <ClCompile Include="..\src\recv_buffer.cpp" />
     <ClCompile Include="..\src\send.cpp" />
     <ClCompile Include="..\src\session.cpp" />
     <ClCompile Include="..\src\socket.cpp" />

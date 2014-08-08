@@ -34,6 +34,7 @@ thread_info* thread_get_thread_info(thread_handle handle);
 
 mutex_handle mutex_create();
 void mutex_destroy(mutex_handle lock);
+bool mutex_trylock(mutex_handle lock);
 void mutex_lock(mutex_handle lock);
 void mutex_unlock(mutex_handle lock);
 

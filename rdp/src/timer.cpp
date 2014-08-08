@@ -60,6 +60,20 @@ timer_val timer_after_time(const timer_val& time_from, const timer_val& time_int
 
     return t;
 }
+ui64 timer_sub_msec(const timer_val& now, const timer_val& before)
+{
+    return (now.tv_sec - before.tv_sec) * 1000 + now.tv_msec - before.tv_msec;
+}
+bool timer_is_empty(const timer_val& time)
+{
+    return (time.tv_sec == 0) && (time.tv_msec == 0) && (time.tv_usec == 0);
+}
+void timer_empty(timer_val& time)
+{
+    time.tv_sec = 0;
+    time.tv_msec = 0;
+    time.tv_usec = 0;
+}
 timer_handle timer_create()
 {
     timer* t = alloc_new_object<timer>();

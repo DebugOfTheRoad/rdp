@@ -47,7 +47,7 @@ i32 rdp_socket_listen(RDPSOCKET sock)
     return core_socket_listen(sock);
 }
 i32 rdp_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout,
-    RDPSESSIONID* session_id, const ui8* buf , ui32 buf_len)
+    RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len)
 {
     return core_socket_connect(sock, ip, port, timeout, session_id, buf, buf_len);
 }
@@ -60,18 +60,18 @@ i32 rdp_session_get_state(RDPSOCKET sock, RDPSESSIONID session_id, ui32* state)
 {
     return core_session_get_state(sock, session_id, state);
 }
-i32 rdp_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui32 buf_len,
-    bool need_ack , bool in_order,
+i32 rdp_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
+    ui32 flags,
     ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size)
 {
-    return core_session_send(sock, session_id, buf, buf_len, need_ack, in_order, 
+    return core_session_send(sock, session_id, buf, buf_len, flags,
         local_send_queue_size, peer_unused_recv_queue_size);
 }
 bool rdp_session_is_income(RDPSESSIONID session_id)
 {
     return core_session_is_income(session_id);
 }
-i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui32 buf_len)
+i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
 {
     return core_udp_send(sock, ip, port, buf, buf_len);
 }

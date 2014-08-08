@@ -29,6 +29,10 @@ static  void __cdecl on_send(const rdp_on_send_param& param)
 {
     // printf("on_send %d, %d, %d\n", err, local_send_queue_size, peer_unused_recv_queue_size);
 }
+static void __cdecl on_udp_recv(const rdp_on_udp_recv_param& param)
+{
+
+}
 
 int server()
 {
@@ -42,6 +46,7 @@ int server()
     startup_param.on_disconnect = on_disconnect;
     startup_param.on_recv = on_recv;
     startup_param.on_send = on_send;
+    startup_param.on_udp_recv = on_udp_recv;
     i32 ret = rdp_startup(&startup_param);
     if (ret < 0) {
         return ret;
@@ -49,10 +54,8 @@ int server()
 
     rdp_socket_create_param socket_create_param = { 0 };
     socket_create_param.v4 = true;
-    socket_create_param.in_session_hash_size = 4 * 1024;
-    socket_create_param.out_session_hash_size = 4;
-    socket_create_param.in_session_hash_lock_sessions = 1024;
-    socket_create_param.out_session_hash_lock_sessions = 1024;
+    socket_create_param.in_session_hash_size = 1024;
+    socket_create_param.out_session_hash_size = 1;
 
     RDPSOCKET sock = 0;
     ret = rdp_socket_create(&socket_create_param, &sock);

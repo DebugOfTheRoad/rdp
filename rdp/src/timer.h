@@ -17,6 +17,9 @@ ui64 timer_time_val_to_ui64(const timer_val& time);//microseconds
 timer_val timer_ui64_to_time_val(ui64 time);
 timer_val timer_get_current_time();
 timer_val timer_after_time(const timer_val& time_from, const timer_val& time_interval);
+ui64 timer_sub_msec(const timer_val& now, const timer_val& before);
+bool timer_is_empty(const timer_val& time);
+void timer_empty(timer_val& time);
 
 timer_handle timer_create();
 void timer_destroy(timer_handle handle);

@@ -26,6 +26,7 @@ typedef std::map<HANDLE, iocp_buffer*>iocp_buffer_list;
 static HANDLE s_iocp = 0;
 static void* s_thread_list[256] = { 0 };
 static recv_result_callback s_recv_result_callback = 0;
+static recv_result_timeout  s_recv_result_timeout = 0;
 static iocp_buffer_list s_iocp_buffer_list;
 static mutex_handle     s_iocp_buffer_list_lock = 0;
 
@@ -53,12 +54,13 @@ static void iocp_destroy_buffer(iocp_buffer* ioBuffer)
     alloc_delete(ioBuffer->buf.buf);
     alloc_delete_object(ioBuffer);
 }
-i32 iocp_create(recv_result_callback cb)
+i32 iocp_create(recv_result_callback cb, recv_result_timeout tcb)
 {
     if (!cb) {
         return RDPERROR_INVALIDPARAM;
     }
     s_recv_result_callback = cb;
+    s_recv_result_timeout = tcb;
     s_iocp = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, s_socket_startup_param.recv_thread_num);
     if (!s_iocp) {
         return RDPERROR_SYSERROR;
@@ -161,18 +163,24 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     LPOVERLAPPED lpOverlapped    = NULL;
     DWORD dwLastError = 0;
 
+    timer_val tv = {0};
     recv_result result = { 0 };
 
     while (ti->state != thread_state_quit) {
         BOOL bRet = GetQueuedCompletionStatus(s_iocp,
                                               &dwTransferd,
                                               (PULONG_PTR)&CompletionKey,
-                                              &lpOverlapped, INFINITE);
+                                              &lpOverlapped, 1/*INFINITE*/);
         if (ti->state == thread_state_quit) {
             break;
         }
         iocp_buffer* ioBuffer = CONTAINING_RECORD(lpOverlapped, iocp_buffer, ol);
+        tv = timer_get_current_time();
         if (!bRet) {
+            dwLastError = GetLastError();
+            if (dwLastError == WAIT_TIMEOUT) {
+                s_recv_result_timeout(handle, tv);
+            }
             continue;
         }
         if (!ioBuffer) {
@@ -188,6 +196,7 @@ void* __cdecl recv_thread_proc(thread_handle handle)
         result.buf.ptr = (ui8*)ioBuffer->buf.buf;
         result.buf.capcity = dwTransferd;
         result.buf.length = result.buf.capcity;
+        result.tv = tv;
         s_recv_result_callback(handle, &result);
 
         int addrlen = ioBuffer->v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);

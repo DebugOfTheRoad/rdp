@@ -94,7 +94,7 @@ i32 core_socket_listen(RDPSOCKET sock)
     return socket_listen(RDPSOCKET2socket_handle(sock));
 }
 i32 core_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout,
-    RDPSESSIONID* session_id, const ui8* buf, ui32 buf_len)
+    RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len)
 {
     if (!s_init) {
         return RDPERROR_NOTINIT;
@@ -116,22 +116,22 @@ i32 core_session_get_state(RDPSOCKET sock, RDPSESSIONID session_id, ui32* state)
     }
     return socket_session_get_state(RDPSOCKET2socket_handle(sock), session_id, state);
 }
-i32 core_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui32 buf_len,
-    bool need_ack, bool in_order,
+i32 core_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
+    ui32 flags,
     ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size)
 {
     if (!s_init) {
         return RDPERROR_NOTINIT;
     }
     return socket_session_send(RDPSOCKET2socket_handle(sock), session_id, buf, buf_len, 
-        need_ack, in_order,
+        flags,
         local_send_queue_size, peer_unused_recv_queue_size);
 }
 bool core_session_is_income(RDPSESSIONID session_id)
 {
     return socket_session_is_income(session_id);
 }
-i32 core_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui32 buf_len)
+i32 core_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
 {
     if (!s_init) {
         return RDPERROR_NOTINIT;

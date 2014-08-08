@@ -8,7 +8,7 @@
 
 static int s_eid = -1;
 
-i32 epoll_create(recv_result_callback cb)
+i32 epoll_create(recv_result_callback cb, recv_result_timeout tcb)
 {
     int ret = RDPERROR_SUCCESS;
     do {

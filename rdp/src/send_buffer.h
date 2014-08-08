@@ -17,11 +17,11 @@ typedef struct send_buffer {
     SOCKET        sock;
     RDPSESSIONID  session_id;
     ui32          seq_num;
+    timer_val     send_time;
 }send_buffer;
  
 typedef struct send_buffer_ex : public send_buffer{
     ui16 send_times;
-    timer_val ack_time;
 }send_buffer_ex;
 
 #endif

@@ -13,5 +13,5 @@ i32 send_send(send_buffer_ex* send_buf)
     if (ret < 0){
         return RDPERROR_SYSERROR;
     }
-    return RDPERROR_SUCCESS;
+    return ret;
 }
