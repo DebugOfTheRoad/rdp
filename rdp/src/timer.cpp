@@ -1,5 +1,6 @@
 #include "timer.h"
 #include "thread.h"
+#include "alloc.h"
 #include "test.h"
 
 #ifdef PLATFORM_OS_WINDOWS
@@ -61,7 +62,7 @@ timer_val timer_after_time(const timer_val& time_from, const timer_val& time_int
 }
 timer_handle timer_create()
 {
-    timer* t = new timer;
+    timer* t = alloc_new_object<timer>();
     t->lock = mutex_create();
     t->cond = mutex_cond_create();
     return (timer_handle)t;
@@ -75,7 +76,7 @@ void timer_destroy(timer_handle handle)
     timer* t = (timer*)handle;
     mutex_destroy(t->lock);
     mutex_cond_destroy(t->cond);
-    delete t;
+    alloc_delete_object(t);
 }
 void timer_sleep(timer_handle handle, const timer_val& time_interval)
 {

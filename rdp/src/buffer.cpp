@@ -1,11 +1,12 @@
 #include "buffer.h"
+#include "alloc.h"
 
 buffer buffer_create(ui32 length)
 {
     buffer b;
     b.length = length;
     b.capcity = length;
-    b.ptr = new ui8[b.capcity];
+    b.ptr = (ui8*)alloc_new(b.capcity);
     return b;
 }
 buffer buffer_create(const ui8* buf, ui32 length)
@@ -14,7 +15,7 @@ buffer buffer_create(const ui8* buf, ui32 length)
     b.length = length;
     b.capcity = length;
     if (b.length > 0) {
-        b.ptr = new ui8[b.capcity];
+        b.ptr = (ui8*)alloc_new(b.capcity);
         memcpy(b.ptr, buf, b.length);
     }
     else {
@@ -28,7 +29,7 @@ buffer buffer_create(const buffer& buf)
     b.length = buf.length;
     b.capcity = buf.capcity;
     if (b.length > 0) {
-        b.ptr = new ui8[b.capcity];
+        b.ptr = (ui8*)alloc_new(b.capcity);
         memcpy(b.ptr, buf.ptr, b.length);
     } else {
         b.ptr = 0;
@@ -37,9 +38,7 @@ buffer buffer_create(const buffer& buf)
 }
 void buffer_destroy(buffer& buf)
 {
-    if (buf.ptr) {
-        delete[]buf.ptr;
-    }
+    alloc_delete(buf.ptr);
     buf.ptr = 0;
     buf.length = 0;
     buf.capcity = 0;

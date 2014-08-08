@@ -1,4 +1,5 @@
 #include "socket_api.h"
+#include "alloc.h"
 
 i32 socket_api_startup(ui32& max_udp_dg)
 {
@@ -86,10 +87,10 @@ sockaddr* socket_api_addr_create(bool v4, const sockaddr *addr)
 {
     sockaddr* add = 0;
     if (v4) {
-        add = (sockaddr*)new sockaddr_in;
+        add = (sockaddr*)alloc_new_object<sockaddr_in>();
         memset(add, 0, sizeof(sockaddr_in));
     } else {
-        add = (sockaddr*)new sockaddr_in6;
+        add = (sockaddr*)alloc_new_object<sockaddr_in6>();
         memset(add, 0, sizeof(sockaddr_in6));
     }
     if (addr) {
@@ -113,9 +114,9 @@ void socket_api_addr_destroy(sockaddr *addr)
     }
     bool v4 = socket_api_addr_is_v4(addr);
     if (v4) {
-        delete (sockaddr_in*)addr;
+        alloc_delete_object((sockaddr_in*)addr);
     } else {
-        delete (sockaddr_in6*)addr;
+        alloc_delete_object((sockaddr_in6*)addr);
     }
 }
 bool socket_api_addr_is_v4(const sockaddr *addr)

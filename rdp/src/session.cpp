@@ -4,6 +4,7 @@
 #include "recv_buffer.h"
 #include "send.h"
 #include "protocol.h"
+#include "alloc.h"
 
 #include <map>
 
@@ -11,13 +12,13 @@
 session* session_create(socket_handle sh, RDPSESSIONID session_id, const sockaddr* addr)
 {
     socket_info* so = socket_get_socket_info(sh);
-    session* sess = new session;
+    session* sess = alloc_new_object<session>();
     memset(sess, 0, sizeof(session));
     sess->sh = sh;
     sess->session_id = session_id;
     sess->state = RDPSESSIONSTATUS_INIT ;
-    sess->send_buf_list = new send_buffer_list;
-    sess->recv_buf_list = new recv_buffer_list;
+    sess->send_buf_list = alloc_new_object<send_buffer_list>();
+    sess->recv_buf_list = alloc_new_object<recv_buffer_list>();
     sess->addr = socket_api_addr_create(addr);
     sess->heart_beat = timer_get_current_time();
     sess->peer_window_size = 0;
@@ -39,7 +40,7 @@ void session_destroy(session* sess)
 
         buffer_destroy(buf->buf);
         socket_api_addr_destroy(buf->addr);
-        delete buf;
+        alloc_delete_object(buf);
     }
     send_buf_list->clear();
 
@@ -50,10 +51,10 @@ void session_destroy(session* sess)
     }
     recv_buf_list->clear();
 
-    delete sess->send_buf_list;
-    delete sess->recv_buf_list;
+    alloc_delete_object(sess->send_buf_list);
+    alloc_delete_object(sess->recv_buf_list);
     socket_api_addr_destroy(sess->addr);
-    delete sess;
+    alloc_delete_object(sess);
 }
 void session_send_ack(session* sess, ui32* seq_num_ack, ui8 seq_num_ack_count)
 {
@@ -96,7 +97,7 @@ i32 session_send_ctrl(session* sess, ui16 cmd)
     pack.seq_num = seq_num;
     pack.cmd = cmd;
 
-    send_buffer_ex* sb = new send_buffer_ex;
+    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
     memset(sb, 0, sizeof(send_buffer_ex));
     sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_ctrl));
     sb->addr = sess->addr;
@@ -111,7 +112,7 @@ i32 session_send_ctrl(session* sess, ui16 cmd)
         (*sess->send_buf_list)[seq_num] = sb;
     } else {
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
     return ret;
 }
@@ -149,7 +150,7 @@ i32 session_send_connect(session* sess, const ui8* data, ui32 data_size)
     protocol_connect pack;
     pack.seq_num = seq_num;
 
-    send_buffer_ex* sb = new send_buffer_ex;
+    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
     memset(sb, 0, sizeof(send_buffer_ex));
     sb->buf = buffer_create(sizeof(protocol_connect)+data_size);
     memcpy(sb->buf.ptr, &pack, sizeof(protocol_connect));
@@ -166,7 +167,7 @@ i32 session_send_connect(session* sess, const ui8* data, ui32 data_size)
         (*sess->send_buf_list)[seq_num] = sb;
     } else {
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
     return ret;
 }
@@ -206,7 +207,7 @@ i32 session_send_disconnect(session* sess, ui16 reason)
     pack.seq_num = seq_num;
     pack.reason = reason;
 
-    send_buffer_ex* sb = new send_buffer_ex;
+    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
     memset(sb, 0, sizeof(send_buffer_ex));
     sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_disconnect));
     sb->addr = sess->addr;
@@ -221,7 +222,7 @@ i32 session_send_disconnect(session* sess, ui16 reason)
         (*sess->send_buf_list)[seq_num] = sb;
     } else {
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
     return ret;
 }
@@ -233,7 +234,7 @@ i32 session_send_heartbeat(session* sess)
     protocol_heartbeat pack;
     pack.seq_num = seq_num;
 
-    send_buffer_ex* sb = new send_buffer_ex;
+    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
     memset(sb, 0, sizeof(send_buffer_ex));
     sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_heartbeat));
     sb->addr = sess->addr;
@@ -248,7 +249,7 @@ i32 session_send_heartbeat(session* sess)
         (*sess->send_buf_list)[seq_num] = sb;
     } else {
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
     return ret;
 }
@@ -278,7 +279,7 @@ i32 session_send_data(session* sess, const ui8* data, ui16 data_size,
     pack.frag_offset = 0;
     pack.data_size = data_size;
 
-    send_buffer_ex* sb = new send_buffer_ex;
+    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
     memset(sb, 0, sizeof(send_buffer_ex));
     sb->buf = buffer_create(sizeof(protocol_data)+data_size);
     memcpy(sb->buf.ptr, &pack, sizeof(protocol_data));
@@ -295,7 +296,7 @@ i32 session_send_data(session* sess, const ui8* data, ui16 data_size,
         (*sess->send_buf_list)[seq_num] = sb;
     } else {
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
     if (local_send_queue_size){
         *local_send_queue_size = (ui32)sess->send_buf_list->size();
@@ -325,7 +326,7 @@ void on_handle_ack(session* sess, ui32* seq_num_ack, ui8 seq_num_ack_count)
         sess->send_buf_list->erase(it);
 
         buffer_destroy(sb->buf);
-        delete sb;
+        alloc_delete_object(sb);
     }
    
     if (s_socket_startup_param.on_send){
@@ -415,9 +416,9 @@ void session_on_ack(session* sess, recv_result* result, protocol_ack* p)
     ui32* seq_num_ack = (ui32*)(p + 1);
     on_handle_ack(sess, seq_num_ack, p->seq_num_ack_count);
 
-    // char* c = new char[1024];
+    // char* c = (char*)alloc_new(1024)  ;
     // socket_session_send(sess->sh, sess->session_id, (const ui8*)c, 1024);
-    // delete[]c;
+    // alloc_delete(c);
 }
 void session_on_ctrl(session* sess, recv_result* result, protocol_ctrl* p)
 {

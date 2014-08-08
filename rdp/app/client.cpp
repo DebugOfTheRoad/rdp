@@ -87,7 +87,7 @@ int client()
                 printf("send failed :not connected\n");
                 continue;
             }
-            int times = 5*1024;
+            int times = 1024*1024;
             int send = 0;
             int len = 1024;
             char* p = new char[len];

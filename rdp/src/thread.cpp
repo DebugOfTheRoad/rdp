@@ -1,5 +1,8 @@
 #include "thread.h"
+#include "alloc.h"
 #include "test.h"
+
+
 #include <set>
 #include <map>
 
@@ -107,7 +110,7 @@ DWORD WINAPI thread_no_pthread_proc(LPVOID lpThreadParameter)
 #endif
 thread_handle thread_create(thread_proc proc, void* param, thread_end_callback cb)
 {
-    thread_info_ex* ti = new thread_info_ex;
+    thread_info_ex* ti = alloc_new_object<thread_info_ex>();
     ti->lock = mutex_create();
     ti->cond = mutex_cond_create();
     ti->state = thread_state_running;
@@ -116,16 +119,16 @@ thread_handle thread_create(thread_proc proc, void* param, thread_end_callback c
     ti->cb = cb;
 
 #ifdef USE_PTHREAD
-    ti->handle = new THREAD_HANDLE;
+    ti->handle = alloc_new_object<THREAD_HANDLE>();
     if (0 != pthread_create(ti->handle, 0, proc, ti)) {
-        delete ti->handle;
+        alloc_delete_object(ti->handle);
         ti->handle = 0;
     }
 #else
     ti->handle = (THREAD_HANDLE)CreateThread(NULL, 0, &thread_no_pthread_proc, (void*)ti, 0, 0);
 #endif
     if (!ti->handle) {
-        delete ti;
+        alloc_delete_object(ti);
         ti = 0;
     }
 
@@ -156,9 +159,9 @@ void thread_destroy(thread_handle handle, i32 exit_code)
     mutex_destroy(ti->lock);
 
 #ifdef USE_PTHREAD
-    delete ti->handle;
+    alloc_delete_object(ti->handle);
 #endif
-    delete ti;
+    alloc_delete_object(ti);
 }
 thread_info* thread_get_thread_info(thread_handle handle)
 {
@@ -166,7 +169,7 @@ thread_info* thread_get_thread_info(thread_handle handle)
 }
 mutex_handle mutex_create()
 {
-    MUTEX_HANDLE* mutex = new MUTEX_HANDLE;
+    MUTEX_HANDLE* mutex = alloc_new_object<MUTEX_HANDLE>();
 #ifdef USE_PTHREAD
     pthread_mutex_init(mutex, 0);
 #else
@@ -199,7 +202,7 @@ void mutex_destroy(mutex_handle lock)
 #else
     ::DeleteCriticalSection(mutex);
 #endif
-    delete mutex;
+    alloc_delete_object(mutex);
 }
 void mutex_lock(mutex_handle lock)
 {
@@ -228,7 +231,7 @@ void mutex_unlock(mutex_handle lock)
 mutex_cond_handle mutex_cond_create()
 {
 #ifdef USE_PTHREAD
-    COND_HANDLE* handle = new COND_HANDLE;
+    COND_HANDLE* handle = alloc_new_object<COND_HANDLE>();
     pthread_cond_init(handle, 0);
 #ifdef PLATFORM_CONFIG_DEBUG
     pthread_mutex_lock(&s_cond_list_mutex);
@@ -267,7 +270,7 @@ void mutex_cond_destroy(mutex_cond_handle handle)
 
 #ifdef USE_PTHREAD
     pthread_cond_destroy(cond);
-    delete cond;
+    alloc_delete_object(cond);
 #else
     CloseHandle(cond);
 #endif

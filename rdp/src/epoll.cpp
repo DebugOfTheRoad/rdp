@@ -1,6 +1,7 @@
 #include "epoll.h"
 #include "thread.h"
 #include "recv.h"
+#include "alloc.h"
 
 #ifdef PLATFORM_OS_LINUX
 
@@ -71,9 +72,9 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     int addrlen = sizeof(addr);
 
     recv_result result = {0};
+    epoll_event* ev = new epoll_event[s_socket_startup_param.max_sock[;
 
     while (ti->state != thread_state_quit) {
-        epoll_event* ev = new epoll_event[s_socket_startup_param.max_sock];
         int nfds = epoll_wait(s_eid, ev, s_socket_startup_param.max_sock, EPOLL_TIME_OUT);
 
         for (int i = 0; i < nfds; ++i) {
@@ -93,6 +94,8 @@ void* __cdecl recv_thread_proc(thread_handle handle)
             }
         }
     }
+
+    delete []ev;
     return 0;
 }
 

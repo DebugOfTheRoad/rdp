@@ -7,6 +7,7 @@
 #include "protocol.h"
 #include "iocp.h"
 #include "epoll.h"
+#include "alloc.h"
 
 
 void socket_recv_result_callback(thread_handle handle, recv_result* result);
@@ -240,7 +241,7 @@ i32 socket_create(rdp_socket_create_param* param, socket_handle* handle)
             so->sess_in.bucket = new session_hash_bucket[so->sess_in.bucket_size];
         }
         if (so->sess_out.bucket_size > 0) {
-            so->sess_out.bucket = new session_hash_bucket[so->sess_out.bucket_size];
+            so->sess_out.bucket = new session_hash_bucket[so->sess_out.bucket_size] ;
         }
         so->sess_in.lock_size = param->in_session_hash_size / param->in_session_hash_lock_sessions + 1;
         so->sess_out.lock_size = param->out_session_hash_size / param->out_session_hash_lock_sessions + 1;
@@ -327,7 +328,7 @@ i32 socket_destroy(socket_handle handle)
             }
             bucket.sess_list.clear();
         }
-        delete[]so->sess_in.bucket;
+        delete []so->sess_in.bucket;
         so->sess_in.bucket = 0;
         sess_in.bucket_size = 0;
 

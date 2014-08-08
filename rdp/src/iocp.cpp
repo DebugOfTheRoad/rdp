@@ -2,6 +2,7 @@
 #include "thread.h"
 #include "socket_api.h"
 #include "recv.h"
+#include "alloc.h"
 #include <map>
 
 #ifdef PLATFORM_OS_WINDOWS
@@ -32,14 +33,14 @@ void* __cdecl recv_thread_proc(thread_handle handle);
 
 static iocp_buffer* iocp_create_buffer(SOCKET sock, bool v4)
 {
-    iocp_buffer* ioBuffer = new iocp_buffer;
+    iocp_buffer* ioBuffer = alloc_new_object<iocp_buffer>();
     SecureZeroMemory((PVOID)&ioBuffer->ol, sizeof(WSAOVERLAPPED));
     ioBuffer->socket = sock;
     ioBuffer->v4 = v4;
     ioBuffer->addr = socket_api_addr_create(v4, 0);
     ioBuffer->op = iocp_opertion_recv;
     ioBuffer->buf.len = s_socket_startup_param.recv_buf_size;
-    ioBuffer->buf.buf = new char[ioBuffer->buf.len];
+    ioBuffer->buf.buf = (char*)alloc_new(ioBuffer->buf.len) ;
     memset(ioBuffer->buf.buf, 0, ioBuffer->buf.len);
     return ioBuffer;
 }
@@ -49,8 +50,8 @@ static void iocp_destroy_buffer(iocp_buffer* ioBuffer)
         return;
     }
     socket_api_addr_destroy(ioBuffer->addr);
-    delete []ioBuffer->buf.buf;
-    delete ioBuffer;
+    alloc_delete(ioBuffer->buf.buf);
+    alloc_delete_object(ioBuffer);
 }
 i32 iocp_create(recv_result_callback cb)
 {

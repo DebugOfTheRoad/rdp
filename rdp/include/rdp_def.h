@@ -144,8 +144,6 @@ typedef struct rdp_startup_param {
     void(__cdecl*on_send)(const rdp_on_send_param& param);
     //on_udp_recv 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
     void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param& param);
-    //on_udp_send 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
-    void(__cdecl*on_udp_send)(const rdp_on_udp_send_param& param);
 } rdp_startup_param;
 
 typedef struct rdp_socket_create_param {
