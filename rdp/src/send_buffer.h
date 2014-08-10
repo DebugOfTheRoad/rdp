@@ -6,22 +6,23 @@
 #include "../include/rdp_def.h"
 #include "config.h"
 #include "buffer.h"
-#include "socket.h"
+#include "timer.h"
+#include "socket_api.h"
+
 
 typedef struct send_buffer {  
-    buffer    buf;
-    i32       flags;
-    sockaddr* addr;
+    SOCKET        socket;
+    buffer        buf;
+    sockaddr*     addr;
 
-    socket_handle sh;
-    SOCKET        sock;
     RDPSESSIONID  session_id;
     ui32          seq_num;
+    ui16          peer_ack_timerout;
+
+    timer_val     first_send_time;
     timer_val     send_time;
 }send_buffer;
  
-typedef struct send_buffer_ex : public send_buffer{
-    ui16 send_times;
-}send_buffer_ex;
+ 
 
 #endif

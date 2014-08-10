@@ -17,7 +17,7 @@ i32 rdp_getsyserror()
 {
     return core_getsyserror();
 }
-i32 rdp_getsyserrordesc(i32 err, char* desc, ui32 desc_len)
+i32 rdp_getsyserrordesc(i32 err, char* desc, ui32* desc_len)
 {
     return core_getsyserrordesc(err, desc, desc_len);
 }
@@ -46,30 +46,26 @@ i32 rdp_socket_listen(RDPSOCKET sock)
 {
     return core_socket_listen(sock);
 }
-i32 rdp_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout,
-    RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len)
+i32 rdp_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout, const ui8* buf, ui16 buf_len, RDPSESSIONID* session_id)
 {
-    return core_socket_connect(sock, ip, port, timeout, session_id, buf, buf_len);
+    return core_socket_connect(sock, ip, port, timeout, buf, buf_len, session_id);
 }
 
-i32 rdp_session_close(RDPSOCKET sock, RDPSESSIONID session_id)
+i32 rdp_session_close(RDPSOCKET sock, RDPSESSIONID session_id, i32 reason)
 {
-    return core_session_close(sock, session_id);
+    return core_session_close(sock, session_id, reason);
 }
 i32 rdp_session_get_state(RDPSOCKET sock, RDPSESSIONID session_id, ui32* state)
 {
     return core_session_get_state(sock, session_id, state);
 }
-i32 rdp_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
-    ui32 flags,
-    ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size)
+i32 rdp_session_send(RDPSOCKET sock, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len, ui32 flags)
 {
-    return core_session_send(sock, session_id, buf, buf_len, flags,
-        local_send_queue_size, peer_unused_recv_queue_size);
+    return core_session_send(sock, session_id, buf, buf_len, flags);
 }
-bool rdp_session_is_income(RDPSESSIONID session_id)
+bool rdp_session_is_in_come(RDPSESSIONID session_id)
 {
-    return core_session_is_income(session_id);
+    return core_session_is_in_come(session_id);
 }
 i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
 {

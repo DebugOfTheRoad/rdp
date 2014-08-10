@@ -1,550 +1,609 @@
-#include "session.h"
+#include "Session.h"
 #include "thread.h"
 #include "send_buffer.h"
 #include "recv_buffer.h"
-#include "send.h"
 #include "protocol.h"
 #include "alloc.h"
+#include "socket.h"
+#include "session_manager.h"
 
-#include <map>
-
-
-session* session_create(socket_handle sh, RDPSESSIONID session_id, const sockaddr* addr)
+Session::Session()
 {
-    socket_info* so = socket_get_socket_info(sh);
-    session* sess = alloc_new_object<session>();
-    memset(sess, 0, sizeof(session));
-    sess->sh = sh;
-    sess->session_id = session_id;
-    sess->state = RDPSESSIONSTATUS_INIT ;
-    sess->send_buf_list = alloc_new_object<send_buffer_list>();
-    sess->addr = socket_api_addr_create(addr);
-    sess->peer_window_size = 0;
-
-    return sess;
+    manager_ = 0;
+    session_id_.sid = 0;
+    state_ = RDPSESSIONSTATUS_NONE;
+    addr_ = 0;
+    seq_num_ = 1;
+    memset(&recv_last_, 0, sizeof(recv_last_));
+    peer_window_size_ = 1024;
+    peer_ack_timerout_ = 128;
 }
-void session_destroy(session* sess)
+Session::~Session()
 {
-    if (!sess) {
-        return;
-    }
-    socket_info* so = socket_get_socket_info(sess->sh);
 
-    send_buffer_list* send_buf_list = sess->send_buf_list;
-    for (send_buffer_list::iterator it = send_buf_list->begin();
-            it != send_buf_list->end(); ++it) {
-        send_buffer_ex* buf = it->second;
-
-        buffer_destroy(buf->buf);
-        socket_api_addr_destroy(buf->addr);
-        alloc_delete_object(buf);
-    }
-    send_buf_list->clear();
-
-
-    alloc_delete_object(sess->send_buf_list);
-    socket_api_addr_destroy(sess->addr);
-    alloc_delete_object(sess);
 }
-void session_send_ack(session* sess, ui32* seq_num_ack, ui8 seq_num_ack_count)
+void Session::create(SessionManager* manager, RDPSESSIONID session_id, const sockaddr* addr)
 {
-    if (0 == seq_num_ack_count) {
-        return;
-    }
-    ui8 seq_nums[sizeof(protocol_ack)+255 * sizeof(ui32)];
-
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    protocol_ack pack;
-    pack.win_size = so->create_param.max_recv_queue_size;
-    pack.seq_num_ack_count = seq_num_ack_count;
-    protocol_set_header(&pack);
-
-    send_buffer_ex sb ;
-    memset(&sb, 0, sizeof(send_buffer_ex));
-    sb.buf.ptr = (ui8*)seq_nums;
-    sb.buf.length = sizeof(protocol_ack)+seq_num_ack_count*sizeof(ui32);
-    sb.buf.capcity = sb.buf.length;
-    memcpy(sb.buf.ptr, &pack, sizeof(protocol_ack));
-    memcpy(sb.buf.ptr + sizeof(protocol_ack), (char*)seq_num_ack, seq_num_ack_count*sizeof(ui32));
-    sb.addr = sess->addr;
-    sb.sh = sess->sh;
-    sb.sock = so->sock;
-    sb.session_id = sess->session_id;
-    sb.seq_num = 0;
-    sb.send_times = 1;
-
-    // printf("send ack %d\n", (i32)seq_num_ack[0]);
-    send_send(&sb);
+    manager_ = manager;
+    session_id_.sid = session_id;
+    state_ = RDPSESSIONSTATUS_INIT;
+    addr_ = socket_api_addr_create(addr);
 }
-i32 session_send_ctrl(session* sess, ui16 cmd)
+void Session::destroy()
 {
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    ui32 seq_num = ++sess->send_seq_num_now;
-    protocol_ctrl pack;
-    pack.seq_num = seq_num;
-    pack.cmd = cmd;
-    protocol_set_header(&pack);
-
-    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
-    memset(sb, 0, sizeof(send_buffer_ex));
-    sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_ctrl));
-    sb->addr = sess->addr;
-    sb->sh = sess->sh;
-    sb->sock = so->sock;
-    sb->session_id = sess->session_id;
-    sb->seq_num = seq_num;
-    sb->send_times = 1;
-
-    i32 ret = send_send(sb);
-    if (sb->buf.length == ret) {
-        (*sess->send_buf_list)[seq_num] = sb;
-    } else {
+    for (send_buffer_list::iterator it = send_buffer_list_.begin();
+            it != send_buffer_list_.end(); ++it) {
+        send_buffer* sb = it->second;
         buffer_destroy(sb->buf);
         alloc_delete_object(sb);
     }
-    return ret;
+    send_buffer_list_.clear();
+
+    seq_num_ = 1;
+    memset(&recv_last_, 0, sizeof(recv_last_));
+    peer_window_size_ = 1024;
+    peer_ack_timerout_ = 128;
+    state_ = RDPSESSIONSTATUS_INIT;
+    session_id_.sid = 0;
+    socket_api_addr_destroy(addr_);
+    addr_ = 0;
+    manager_ = 0;
 }
-void session_send_ctrl_ack(session* sess, ui32 seq_num_ack, ui16 cmd, ui16 error)
+i32 Session::ctrl(ui16 cmd)
 {
-    socket_info* so = socket_get_socket_info(sess->sh);
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        if (seq_num_ >= 0xffffffff) {
+            seq_num_ = 1;
+        }
+        ui32 seq_num = seq_num_++;
 
-    protocol_ctrl_ack pack;
-    pack.seq_num_ack = seq_num_ack;
-    pack.cmd = cmd;
-    pack.error = error;
-    protocol_set_header(&pack);
-
-    send_buffer_ex sb;
-    memset(&sb, 0, sizeof(send_buffer_ex));
-    sb.buf.ptr = (ui8*)&pack;
-    sb.buf.length = sizeof(protocol_ctrl_ack);
-    sb.buf.capcity = sb.buf.length;
-    sb.addr = sess->addr;
-    sb.sh = sess->sh;
-    sb.sock = so->sock;
-    sb.session_id = sess->session_id;
-    sb.seq_num = 0;
-    sb.send_times = 1;
-
-    send_send(&sb);
-}
-i32 session_send_connect(session* sess, const ui8* data, ui32 data_size)
-{
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    ui32 seq_num = ++sess->send_seq_num_now;
-    protocol_connect pack;
-    pack.seq_num = seq_num;
-    pack.ack_timeout = 300;
-    pack.data_size = data_size;
-    protocol_set_header(&pack);
-
-    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
-    memset(sb, 0, sizeof(send_buffer_ex));
-    sb->buf = buffer_create(sizeof(protocol_connect)+data_size);
-    memcpy(sb->buf.ptr, &pack, sizeof(protocol_connect));
-    memcpy(sb->buf.ptr + sizeof(protocol_connect), data, data_size);
-    sb->addr = sess->addr;
-    sb->sh = sess->sh;
-    sb->sock = so->sock;
-    sb->session_id = sess->session_id;
-    sb->seq_num = seq_num;
-    sb->send_times = 1;
-
-    i32 ret = send_send(sb);
-    if (sb->buf.length == ret) {
-        (*sess->send_buf_list)[seq_num] = sb;
-    } else {
-        buffer_destroy(sb->buf);
-        alloc_delete_object(sb);
-    }
-    return ret;
-}
-void session_send_connect_ack(session* sess, ui32 seq_num_ack, ui16 error)
-{
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    protocol_connect_ack pack;
-    pack.win_size = so->create_param.max_recv_queue_size;
-    pack.seq_num_ack = seq_num_ack;
-    pack.error = error;
-    pack.ack_timeout = so->create_param.ack_timeout;
-    pack.heart_beat_timeout = so->create_param.heart_beat_timeout;
-    protocol_set_header(&pack);
-
-    send_buffer_ex sb;
-    memset(&sb, 0, sizeof(send_buffer_ex));
-    sb.buf.ptr = (ui8*)&pack;
-    sb.buf.length = sizeof(protocol_connect_ack);
-    sb.buf.capcity = sb.buf.length;
-    sb.addr = sess->addr;
-    sb.sh = sess->sh;
-    sb.sock = so->sock;
-    sb.session_id = sess->session_id;
-    sb.seq_num = 0;
-    sb.send_times = 1;
-
-    send_send(&sb);
-}
-i32 session_send_disconnect(session* sess, ui16 reason)
-{
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    ui32 seq_num = ++sess->send_seq_num_now;
-    protocol_disconnect pack;
-    pack.seq_num = seq_num;
-    pack.reason = reason;
-    pack.need_ack = true;
-    protocol_set_header(&pack);
-
-    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
-    memset(sb, 0, sizeof(send_buffer_ex));
-    sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_disconnect));
-    sb->addr = sess->addr;
-    sb->sh = sess->sh;
-    sb->sock = so->sock;
-    sb->session_id = sess->session_id;
-    sb->seq_num = seq_num;
-    sb->send_times = 1;
-
-    i32 ret = send_send(sb);
-    if (pack.need_ack && (sb->buf.length == ret)) {
-        (*sess->send_buf_list)[seq_num] = sb;
-    } else {
-        buffer_destroy(sb->buf);
-        alloc_delete_object(sb);
-    }
-    return ret;
-}
-i32 session_send_heartbeat(session* sess)
-{
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    ui32 seq_num = ++sess->send_seq_num_now;
-    protocol_heartbeat pack;
-    pack.seq_num = seq_num;
-    protocol_set_header(&pack);
-
-    send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
-    memset(sb, 0, sizeof(send_buffer_ex));
-    sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_heartbeat));
-    sb->addr = sess->addr;
-    sb->sh = sess->sh;
-    sb->sock = so->sock;
-    sb->session_id = sess->session_id;
-    sb->seq_num = seq_num;
-    sb->send_times = 1;
-
-    i32 ret = send_send(sb);
-    if (sb->buf.length == ret) {
-        (*sess->send_buf_list)[seq_num] = sb;
-    } else {
-        buffer_destroy(sb->buf);
-        alloc_delete_object(sb);
-    }
-    return ret;
-}
-i32 session_send_data(session* sess, const ui8* data, ui16 data_size,
-    ui32 flags,
-    ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size)
-{
-    socket_info* so = socket_get_socket_info(sess->sh);
-
-    if (local_send_queue_size){
-        *local_send_queue_size = (ui32)sess->send_buf_list->size();
-    }
-    if (peer_unused_recv_queue_size){
-        *peer_unused_recv_queue_size = sess->peer_window_size;
-    }
-
-    if (data_size == 0) {
-        return 0;
-    }
-    i32 ret = 0;
-    if (flags & RDPSESSIONSENDFLAG_ACK)
-    {
-        ui32 seq_num = ++sess->send_seq_num_now;
-        protocol_data pack;
+        protocol_ctrl pack;
         pack.seq_num = seq_num;
-        pack.seq_num_ack = 0;
-        pack.data_size = data_size;
+        pack.cmd = cmd;
         protocol_set_header(&pack);
 
-        send_buffer_ex* sb = alloc_new_object<send_buffer_ex>();
-        memset(sb, 0, sizeof(send_buffer_ex));
-        sb->buf = buffer_create(sizeof(protocol_data)+data_size);
-        memcpy(sb->buf.ptr, &pack, sizeof(protocol_data));
-        memcpy(sb->buf.ptr + sizeof(protocol_data), data, data_size);
-        sb->addr = sess->addr;
-        sb->sh = sess->sh;
-        sb->sock = so->sock;
-        sb->session_id = sess->session_id;
+        send_buffer* sb = alloc_new_object<send_buffer>();
+        memset(sb, 0, sizeof(send_buffer));
+        sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_ctrl));
+        sb->addr = addr_;
+        sb->session_id = session_id_.sid;
         sb->seq_num = seq_num;
-        sb->send_times = 1;
+        sb->peer_ack_timerout = peer_ack_timerout_;
+        sb->first_send_time = timer_get_current_time();
 
-        i32 ret = send_send(sb);
+        ret = manager_->get_socket()->send(sb);
         if (sb->buf.length == ret) {
-            (*sess->send_buf_list)[seq_num] = sb;
-        }
-        else {
+            send_buffer_list_[sb->seq_num] = sb;
+        } else {
             buffer_destroy(sb->buf);
             alloc_delete_object(sb);
         }
-        if (local_send_queue_size){
-            *local_send_queue_size = (ui32)sess->send_buf_list->size();
-        }
-    }
-    else{
-        protocol_data_noack pack;
-        pack.data_size = data_size;
-        protocol_set_header(&pack);
-
-        send_buffer_ex sb ;
-        memset(&sb, 0, sizeof(send_buffer_ex));
-        sb.buf = buffer_create(sizeof(protocol_data_noack)+data_size);
-        memcpy(sb.buf.ptr, &pack, sizeof(protocol_data_noack));
-        memcpy(sb.buf.ptr + sizeof(protocol_data_noack), data, data_size);
-        sb.addr = sess->addr;
-        sb.sh = sess->sh;
-        sb.sock = so->sock;
-        sb.session_id = sess->session_id;
-        sb.seq_num = 0;
-        sb.send_times = 1;
-
-        ret = send_send(&sb);
-    }
-    
+    } while (0);
     return ret;
 }
-
-//////////////////////////////////////////////////////////////////////////
-void on_handle_ack(session* sess, ui32* seq_num_ack, ui8 seq_num_ack_count)
+i32 Session::connect(ui32 timeout, const ui8* buf, ui16 buf_len)
 {
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        if (state_ == RDPSESSIONSTATUS_CONNECTING ||
+                state_ == RDPSESSIONSTATUS_CONNECTED) {
+            ret = RDPERROR_SESSION_BADSTATE;
+            break;
+        }
+        state_ = RDPSESSIONSTATUS_CONNECTING;
+
+        if (seq_num_ >= 0xffffffff) {
+            seq_num_ = 1;
+        }
+        ui32 seq_num = seq_num_++;
+
+        protocol_connect pack;
+        pack.seq_num = seq_num;
+        pack.ack_timeout = 300;
+        pack.connect_timeout = timeout;
+        pack.data_size = buf_len;
+        protocol_set_header(&pack);
+
+        send_buffer* sb = alloc_new_object<send_buffer>();
+        memset(sb, 0, sizeof(send_buffer));
+        sb->buf = buffer_create(sizeof(protocol_connect)+buf_len);
+        memcpy(sb->buf.ptr, &pack, sizeof(protocol_connect));
+        memcpy(sb->buf.ptr + sizeof(protocol_connect), buf, buf_len);
+        sb->addr = addr_;
+        sb->session_id = session_id_.sid;
+        sb->seq_num = seq_num;
+        sb->peer_ack_timerout = peer_ack_timerout_;
+        sb->first_send_time = timer_get_current_time();
+
+        ret = manager_->get_socket()->send(sb);
+        if (sb->buf.length == ret) {
+            send_buffer_list_[sb->seq_num] = sb;
+        } else {
+            buffer_destroy(sb->buf);
+            alloc_delete_object(sb);
+        }
+
+    } while (0);
+    return ret;
+}
+i32 Session::disconnect(ui16 reason)
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        if (state_ <= RDPSESSIONSTATUS_INIT ) {
+            ret = RDPERROR_SESSION_BADSTATE;
+            break;
+        }
+        state_ = RDPSESSIONSTATUS_INIT;
+
+        protocol_disconnect pack;
+        pack.reason = reason;
+        protocol_set_header(&pack);
+
+        send_buffer sb ;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf.ptr = (ui8*)&pack;
+        sb.buf.capcity = sizeof(protocol_disconnect);
+        sb.buf.length = sb.buf.capcity;
+        sb.addr = addr_;
+        sb.session_id = session_id_.sid;
+        sb.seq_num = 0;
+
+        ret = manager_->get_socket()->send(&sb);
+    } while (0);
+
+    for (send_buffer_list::iterator it = send_buffer_list_.begin();
+            it != send_buffer_list_.end(); ++it) {
+        send_buffer* sb = it->second;
+        buffer_destroy(sb->buf);
+        alloc_delete_object(sb);
+    }
+    send_buffer_list_.clear();
+
+    return ret;
+}
+i32 Session::send(const ui8* buf, ui16 buf_len, ui32 flags)
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        if (state_ != RDPSESSIONSTATUS_CONNECTED ) {
+            ret = RDPERROR_SESSION_BADSTATE;
+            break;
+        }
+        if (flags & RDPSESSIONSENDFLAG_ACK) {
+            if (seq_num_ >= 0xffffffff) {
+                seq_num_ = 1;
+            }
+            ui32 seq_num = seq_num_++;
+
+            protocol_data pack;
+            pack.seq_num = seq_num;
+            pack.seq_num_ack = 0;
+            pack.flags = 0;
+            pack.data_size = buf_len;
+            protocol_set_header(&pack);
+
+            send_buffer* sb = alloc_new_object<send_buffer>();
+            memset(sb, 0, sizeof(send_buffer));
+            sb->buf = buffer_create(sizeof(protocol_data)+buf_len);
+            memcpy(sb->buf.ptr, &pack, sizeof(protocol_data));
+            memcpy(sb->buf.ptr + sizeof(protocol_data), buf, buf_len);
+            sb->addr = addr_;
+            sb->session_id = session_id_.sid;
+            sb->seq_num = seq_num;
+            sb->peer_ack_timerout = peer_ack_timerout_;
+            sb->first_send_time = timer_get_current_time();
+
+            ret = manager_->get_socket()->send(sb);
+            if (sb->buf.length == ret) {
+                send_buffer_list_[sb->seq_num] = sb;
+            } else {
+                buffer_destroy(sb->buf);
+                alloc_delete_object(sb);
+            }
+        } else {
+            protocol_data_noack pack;
+            pack.data_size = buf_len;
+            protocol_set_header(&pack);
+
+            send_buffer sb;
+            memset(&sb, 0, sizeof(send_buffer));
+            sb.buf = buffer_create(sizeof(protocol_data_noack)+buf_len);
+            memcpy(sb.buf.ptr, &pack, sizeof(protocol_data_noack));
+            memcpy(sb.buf.ptr + sizeof(protocol_data_noack), buf, buf_len);
+            sb.addr = addr_;
+            sb.session_id = session_id_.sid;
+            sb.seq_num = 0;
+
+            ret = manager_->get_socket()->send(&sb);
+
+            buffer_destroy(sb.buf);
+        }
+    } while (0);
+    return ret;
+}
+i32 Session::heartbeat()
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        protocol_heartbeat pack;
+        protocol_set_header(&pack);
+
+        send_buffer sb;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf.ptr = (ui8*)&pack;
+        sb.buf.capcity = sizeof(protocol_heartbeat);
+        sb.buf.length = sb.buf.capcity;
+        sb.addr = addr_;
+        sb.session_id = session_id_.sid;
+        sb.seq_num = 0;
+
+        ret = manager_->get_socket()->send(&sb);
+    } while (0);
+    return ret;
+}
+i32 Session::ack(ui32* seq_num_ack, ui8 seq_num_ack_count)
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        if (state_ != RDPSESSIONSTATUS_CONNECTED) {
+            ret = RDPERROR_SESSION_BADSTATE;
+            break;
+        }
+        if (0 == seq_num_ack_count) {
+            break;
+        }
+        ui8 seq_nums[sizeof(protocol_ack)+255 * sizeof(ui32)];
+
+        protocol_ack pack;
+        pack.win_size = 0;
+        pack.seq_num_ack_count = seq_num_ack_count;
+        protocol_set_header(&pack);
+
+        send_buffer sb;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf.ptr = (ui8*)seq_nums;
+        sb.buf.length = sizeof(protocol_ack)+seq_num_ack_count*sizeof(ui32);
+        sb.buf.capcity = sb.buf.length;
+        memcpy(sb.buf.ptr, &pack, sizeof(protocol_ack));
+        memcpy(sb.buf.ptr + sizeof(protocol_ack), (char*)seq_num_ack, seq_num_ack_count*sizeof(ui32));
+        sb.addr = addr_;
+        sb.session_id = session_id_.sid;
+        sb.seq_num = 0;
+
+        ret = manager_->get_socket()->send(&sb);
+    } while (0);
+    return ret;
+}
+i32 Session::ctrl_ack(ui32 seq_num_ack, ui16 cmd, ui16 error)
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        protocol_ctrl_ack pack;
+        pack.seq_num_ack = seq_num_ack;
+        pack.cmd = cmd;
+        pack.error = error;
+        protocol_set_header(&pack);
+
+        send_buffer sb;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf.ptr = (ui8*)&pack;
+        sb.buf.length = sizeof(protocol_ctrl_ack);
+        sb.buf.capcity = sb.buf.length;
+        sb.addr = addr_;
+        sb.session_id = session_id_.sid;
+        sb.seq_num = 0;
+
+        ret = manager_->get_socket()->send(&sb);
+    } while (0);
+    return ret;
+}
+i32 Session::connect_ack(ui32 seq_num_ack, ui16 error)
+{
+    i32 ret = RDPERROR_SUCCESS;
+    do {
+        const rdp_socket_create_param& param = manager_->get_socket()->get_create_param();
+
+        protocol_connect_ack pack;
+        pack.win_size = 0;
+        pack.seq_num_ack = seq_num_ack;
+        pack.error = error;
+        pack.ack_timeout = param.ack_timeout;
+        pack.heart_beat_timeout = param.heart_beat_timeout;
+        protocol_set_header(&pack);
+
+        send_buffer sb;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf.ptr = (ui8*)&pack;
+        sb.buf.length = sizeof(protocol_connect_ack);
+        sb.buf.capcity = sb.buf.length;
+        sb.addr = addr_;
+        sb.session_id = session_id_.sid;
+        sb.seq_num = 0;
+
+        ret = manager_->get_socket()->send(&sb);
+    } while (0);
+    return ret;
+}
+void Session::on_recv(protocol_header* ph)
+{
+    if (ph->protocol == proto_ack) {
+        on_ack((protocol_ack*)ph);
+    } else if (ph->protocol == proto_ctrl) {
+        on_ctrl((protocol_ctrl*)ph);
+    } else if (ph->protocol == proto_ctrl_ack) {
+        on_ctrl_ack((protocol_ctrl_ack*)ph);
+    } else if (ph->protocol == proto_connect) {
+        on_connect((protocol_connect*)ph);
+    } else if (ph->protocol == proto_connect_ack) {
+        on_connect_ack((protocol_connect_ack*)ph);
+    } else if (ph->protocol == proto_disconnect) {
+        on_disconnect( (protocol_disconnect*)ph);
+    } else if (ph->protocol == proto_heartbeat) {
+        on_heartbeat((protocol_heartbeat*)ph);
+    } else if (ph->protocol == proto_data) {
+        on_data( (protocol_data*)ph);
+    } else if (ph->protocol == proto_data_noack) {
+        on_data_noack((protocol_data_noack*)ph);
+    }
+
+    recv_last_ = timer_get_current_time();
+}
+void Session::on_ack(protocol_ack* p)
+{
+    peer_window_size_ = p->win_size;
+
+    ui32* seq_num_ack = (ui32*)(p + 1);
+    on_handle_ack(seq_num_ack, p->seq_num_ack_count);
+}
+void Session::on_ctrl(protocol_ctrl* p)
+{
+    on_handle_ctrl( p);
+}
+void Session::on_ctrl_ack(protocol_ctrl_ack* p)
+{
+    if (p->seq_num_ack != 0) {
+        ui32 seq_num_ack[1] = { p->seq_num_ack };
+        on_handle_ack(seq_num_ack, _countof(seq_num_ack));
+    }
+    on_handle_ctrl_ack( p);
+}
+void Session::on_connect(protocol_connect* p)
+{
+    on_handle_connect( p);
+}
+void Session::on_connect_ack( protocol_connect_ack* p)
+{
+    peer_window_size_ = p->win_size;
+
+    if (p->seq_num_ack != 0) {
+        ui32 seq_num_ack[1] = { p->seq_num_ack };
+        on_handle_ack(seq_num_ack, _countof(seq_num_ack));
+    }
+    on_handle_connect_ack( p);
+}
+void Session::on_disconnect(protocol_disconnect* p)
+{
+    on_handle_disconnect( p);
+}
+void Session::on_heartbeat(protocol_heartbeat* p)
+{
+    on_handle_heartbeat( p);
+}
+void Session::on_data(protocol_data* p)
+{
+    if (p->seq_num_ack != 0) {
+        ui32 seq_num_ack[1] = { p->seq_num_ack };
+        on_handle_ack(seq_num_ack, _countof(seq_num_ack) );
+    }
+    on_handle_data( p);
+}
+void Session::on_data_noack( protocol_data_noack* p)
+{
+    on_handle_data_noack( p);
+}
+void Session::on_handle_ack(ui32* seq_num_ack, ui8 seq_num_ack_count)
+{
+    const rdp_startup_param& sparam = socket_get_startup_param();
+
     for (ui8 i = 0; i < seq_num_ack_count; ++i) {
         ui32 seq_num = seq_num_ack[i];
-        //printf("ack seq_num %d\n", seq_num);
-        if (seq_num == 0) {
-            // printf("ack seq_num 0 %d\n", seq_num);
-            continue;
-        }
-        send_buffer_list::iterator it = sess->send_buf_list->find(seq_num);
-        if (it == sess->send_buf_list->end()) {
-            //  printf("ack seq_num bad %d\n", seq_num);
+        send_buffer_list::iterator it = send_buffer_list_.find(seq_num);
+        if (it == send_buffer_list_.end()) {
             continue;
         }
 
         //暂时不考虑数据包分片(不分片,不组片),如果收到确认,直接从发送队列中删除发送的消息
-        //以后再添加大数据包分片支持
-        send_buffer_ex* sb = it->second;
-        sess->send_buf_list->erase(it);
+        send_buffer* sb = it->second;
+        send_buffer_list_.erase(it);
 
         buffer_destroy(sb->buf);
         alloc_delete_object(sb);
     }
-   
-    if (s_socket_startup_param.on_send){
+
+    if (sparam.on_send) {
         rdp_on_send_param param;
         param.err = 0;
-        param.sock = socket_handle2RDPSOCKET(sess->sh);
-        param.session_id = sess->session_id;
-        param.local_send_queue_size = sess->send_buf_list->size();
-        param.peer_unused_recv_queue_size = sess->peer_window_size;
+        param.sock = manager_->get_socket()->get_rdpsocket();
+        param.session_id = session_id_.sid;
+        param.local_send_queue_size = send_buffer_list_.size();
+        param.peer_window_size_ = peer_window_size_;
 
-        s_socket_startup_param.on_send(param);
+        sparam.on_send(param);
     }
 }
-void on_handle_ctrl(session* sess, protocol_ctrl* p)
-{
-
-}
-void on_handle_ctrl_ack(session* sess, protocol_ctrl_ack* p)
+void Session::on_handle_ctrl(protocol_ctrl* p)
 {
 
 }
-void on_handle_connect(session* sess, protocol_connect* p)
+void Session::on_handle_ctrl_ack(protocol_ctrl_ack* p)
 {
-    bool income = socket_session_is_income(sess->session_id);
-    if (!income) {
-        return;
-    }
-    sess->state = RDPSESSIONSTATUS_CONNECTED;
-    session_send_connect_ack(sess, p->seq_num, protocol_connect_ack::connect_ack_success);
+
 }
-void on_handle_connect_ack(session* sess, protocol_connect_ack* p)
+void Session::on_handle_connect(protocol_connect* p)
 {
-    bool income = socket_session_is_income(sess->session_id);
-    if (income) {
-        return;
+    if (session_is_in_come(session_id_.sid)) {
+        state_ = RDPSESSIONSTATUS_CONNECTED;
     }
-    sess->state = RDPSESSIONSTATUS_CONNECTED;
-    socket_info* si = socket_get_socket_info(sess->sh);
+    connect_ack(p->seq_num, protocol_connect_ack::connect_ack_success);
+}
+void Session::on_handle_connect_ack(protocol_connect_ack* p)
+{
+    const rdp_startup_param& sparam = socket_get_startup_param();
+
+    state_ = RDPSESSIONSTATUS_CONNECTED;
+
     rdp_on_connect_param param;
-    param.sock = socket_handle2RDPSOCKET(sess->sh);
+    param.sock = manager_->get_socket()->get_rdpsocket();
     param.err = 0;
-    param.session_id = sess->session_id;
-    s_socket_startup_param.on_connect(param);
+    param.session_id = session_id_.sid;
+
+    sparam.on_connect(param);
 }
-void on_handle_disconnect(session* sess, protocol_disconnect* p)
+void Session::on_handle_disconnect(protocol_disconnect* p)
 {
-    sess->state = RDPSESSIONSTATUS_DISCONNECTING;
+    const rdp_startup_param& sparam = socket_get_startup_param();
+
+    state_ = RDPSESSIONSTATUS_INIT;
 
     rdp_on_disconnect_param param;
     param.err = RDPERROR_SUCCESS;
     param.reason = p->reason;
-    param.sock = socket_handle2RDPSOCKET(sess->sh);
-    param.session_id = sess->session_id;
+    param.sock = manager_->get_socket()->get_rdpsocket();
+    param.session_id = session_id_.sid;
 
-    s_socket_startup_param.on_disconnect(param);
-
-    if (p->need_ack){
-        ui32 seq_num_ack[1] = { p->seq_num };
-        session_send_ack(sess, seq_num_ack, _countof(seq_num_ack));
+    sparam.on_disconnect(param);
+}
+void Session::on_handle_heartbeat(protocol_heartbeat* p)
+{
+    if (session_is_in_come(session_id_.sid)) {
+        heartbeat();
     }
 }
-void on_handle_heartbeat(session* sess, protocol_heartbeat* p)
+void Session::on_handle_data(protocol_data* p)
 {
-    
-}
-void on_handle_data(session* sess, protocol_data* p)
-{
-    //printf("handle data seq_num %d\n", p->seq_num);
-    socket_info* si = socket_get_socket_info(sess->sh);
+    const rdp_startup_param& sparam = socket_get_startup_param();
 
     rdp_on_recv_param param;
-    param.sock = socket_handle2RDPSOCKET(sess->sh);
-    param.session_id = sess->session_id;
+    param.sock = manager_->get_socket()->get_rdpsocket();
+    param.session_id = session_id_.sid;
     param.buf = (ui8*)(p + 1);
     param.buf_len = p->data_size;
 
-    s_socket_startup_param.on_recv(param);
-
     ui32 seq_num_ack[1] = { p->seq_num };
-    session_send_ack(sess, seq_num_ack, _countof(seq_num_ack));
+    ack(seq_num_ack, _countof(seq_num_ack));
+
+    sparam.on_recv(param);
 }
-void on_handle_data_noack(session* sess, protocol_data_noack* p)
+void Session::on_handle_data_noack(protocol_data_noack* p)
 {
+    const rdp_startup_param& sparam = socket_get_startup_param();
+
     rdp_on_recv_param param;
-    param.sock = socket_handle2RDPSOCKET(sess->sh);
-    param.session_id = sess->session_id;
+    param.sock = manager_->get_socket()->get_rdpsocket();
+    param.session_id = session_id_.sid;
     param.buf = (ui8*)(p + 1);
     param.buf_len = p->data_size;
     //no_ack类的数据包,直接提交给上层服务
-    s_socket_startup_param.on_recv(param);
+    sparam.on_recv(param);
 }
-void session_on_ack(session* sess, recv_result* result, protocol_ack* p)
+void Session::on_update(const timer_val& now)
 {
-    sess->peer_window_size = p->win_size;
+    const int max_times = 10;
+    const rdp_startup_param& sparam = socket_get_startup_param();
+    const rdp_socket_create_param& scparam = manager_->get_socket()->get_create_param();
 
-    ui32* seq_num_ack = (ui32*)(p + 1);
-    on_handle_ack(sess, seq_num_ack, p->seq_num_ack_count);
+    do {
+        if (timer_is_empty(recv_last_)) {
+            recv_last_ = now;
+        } else {
+            i32 sec = timer_sub_sec(now, recv_last_);
+            if (sec >= scparam.heart_beat_timeout*4/5) {
+                if (!session_is_in_come(session_id_.sid)) {
+                    heartbeat();
+                }
+            }
+            if (sec >= scparam.heart_beat_timeout) {
+                state_ = RDPSESSIONSTATUS_INIT;
 
-    // char* c = (char*)alloc_new(1024)  ;
-    // socket_session_send(sess->sh, sess->session_id, (const ui8*)c, 1024);
-    // alloc_delete(c);
-}
-void session_on_ctrl(session* sess, recv_result* result, protocol_ctrl* p)
-{
-    on_handle_ctrl(sess, p);
-}
-void session_on_ctrl_ack(session* sess, recv_result* result, protocol_ctrl_ack* p)
-{
-    if (p->seq_num_ack != 0) {
-        ui32 seq_num_ack[1] = { p->seq_num_ack };
-        on_handle_ack(sess, seq_num_ack, _countof(seq_num_ack));
-    }
-    on_handle_ctrl_ack(sess, p);
-}
-void session_on_connect(session* sess, recv_result* result, protocol_connect* p)
-{
-    on_handle_connect(sess, p);
-}
-void session_on_connect_ack(session* sess, recv_result* result, protocol_connect_ack* p)
-{
-    sess->peer_window_size = p->win_size;
-
-    if (p->seq_num_ack != 0) {
-        ui32 seq_num_ack[1] = { p->seq_num_ack };
-        on_handle_ack(sess, seq_num_ack, _countof(seq_num_ack));
-    }
-    on_handle_connect_ack(sess, p);
-}
-void session_on_disconnect(session* sess, recv_result* result, protocol_disconnect* p)
-{
-    on_handle_disconnect(sess, p);
-}
-void session_on_heartbeat(session* sess, recv_result* result, protocol_heartbeat* p)
-{
-    on_handle_heartbeat(sess, p);
-}
-void session_on_data(session* sess, recv_result* result, protocol_data* p)
-{
-    if (p->seq_num_ack != 0) {
-        ui32 seq_num_ack[1] = { p->seq_num_ack };
-        on_handle_ack(sess, seq_num_ack, _countof(seq_num_ack));
-    }
-    on_handle_data(sess, p);
-}
-void session_on_data_noack(session* sess, recv_result* result, protocol_data_noack* p)
-{
-    on_handle_data_noack(sess, p);
-}
-void session_send_check(session* sess, const timer_val& tv)
-{
-    //每隔2ms检查一次
-    ui64 t = timer_sub_msec(tv, sess->check_ack_last);
-    if (t < 2){
-        return;
-    }
-    sess->check_ack_last = tv;
-
-    socket_info* si = socket_get_socket_info(sess->sh);
-    send_buffer_list* sbl = sess->send_buf_list;
-
-    send_buffer_list::iterator it = sbl->begin();
-    send_buffer_list::iterator end = sbl->end();
-    for (; it != end; ++it){
-        send_buffer_ex* sb = it->second;
-        //从上次发送到现在已经超过确认超时时间的2/5,重发数据
-        if (timer_sub_msec(tv, sb->send_time) > si->create_param.ack_timeout * 2 / 5) {
-            sb->send_time = tv;
-            send_send(sb);
+                rdp_on_disconnect_param dparam;
+                dparam.err = RDPERROR_SESSION_HEARTBEATTIMEOUT;
+                dparam.reason = 0;
+                dparam.sock = manager_->get_socket()->get_rdpsocket();
+                dparam.session_id = session_id_.sid;
+                sparam.on_disconnect(dparam);
+                break;
+            }
         }
-    }
-}
 
-void session_handle_recv(session* sess, recv_result* result)
-{
-    protocol_header* ph = (protocol_header*)result->buf.ptr;
+        if (send_buffer_list_.empty()) {
+            break;
+        }
 
-    if (ph->protocol == proto_ack) {
-        session_on_ack(sess, result, (protocol_ack*)ph);
+        rdp_on_send_param send_param;
+        send_param.sock = manager_->get_socket()->get_rdpsocket();
+        send_param.peer_window_size_ = 0;
+
+        for (send_buffer_list::iterator it = send_buffer_list_.begin();
+                it != send_buffer_list_.end();) {
+            send_buffer* sb = it->second;
+
+            ui64 interval = timer_sub_msec(now, sb->send_time);
+            if (interval < sb->peer_ack_timerout && interval < scparam.ack_timeout) {
+                ++it;
+                continue;
+            }
+            i32 ret = manager_->get_socket()->send(sb);
+
+            protocol_header* ph = (protocol_header*)sb->buf.ptr;
+            if (ph->protocol == proto_connect) {
+                protocol_connect* p = (protocol_connect*)ph;
+                ui64 interval_from_begin = timer_sub_msec(now, sb->first_send_time);
+
+                if (interval_from_begin >= p->connect_timeout ||
+                        ret != sb->buf.length ) {
+
+                    state_ = RDPSESSIONSTATUS_INIT;
+
+                    rdp_on_connect_param cparam;
+                    cparam.err = ret != sb->buf.length ? ret : RDPERROR_SESSION_CONNTIMEOUT;
+                    cparam.sock = send_param.sock;
+                    cparam.session_id = sb->session_id;
+                    sparam.on_connect(cparam);
+
+                    break;
+                }
+            }
+
+            if (ret != sb->buf.length ) {
+                it = send_buffer_list_.erase(it);
+
+                if (sparam.on_send) {
+                    send_param.err = ret;
+                    send_param.session_id = sb->session_id;
+                    send_param.local_send_queue_size = send_buffer_list_.size();
+                    sparam.on_send(send_param);
+                }
+
+                buffer_destroy(sb->buf);
+                alloc_delete_object(sb);
+            } else {
+                ++it;
+            }
+        }
+
+    } while (0);
+
+
+    if (state_ == RDPSESSIONSTATUS_INIT) {
+        for (send_buffer_list::iterator it = send_buffer_list_.begin();
+                it != send_buffer_list_.end(); ++it) {
+            send_buffer* sb = it->second;
+
+            buffer_destroy(sb->buf);
+            alloc_delete_object(sb);
+        }
+        send_buffer_list_.clear();
     }
-    else if (ph->protocol == proto_ctrl) {
-        session_on_ctrl(sess, result, (protocol_ctrl*)ph);
-    }
-    else if (ph->protocol == proto_ctrl_ack) {
-        session_on_ctrl_ack(sess, result, (protocol_ctrl_ack*)ph);
-    }
-    else if (ph->protocol == proto_connect) {
-        session_on_connect(sess, result, (protocol_connect*)ph);
-    }
-    else if (ph->protocol == proto_connect_ack) {
-        session_on_connect_ack(sess, result, (protocol_connect_ack*)ph);
-    }
-    else if (ph->protocol == proto_disconnect) {
-        session_on_disconnect(sess, result, (protocol_disconnect*)ph);
-    }
-    else if (ph->protocol == proto_heartbeat) {
-        session_on_heartbeat(sess, result, (protocol_heartbeat*)ph);
-    }
-    else if (ph->protocol == proto_data) {
-        session_on_data(sess, result, (protocol_data*)ph);
-    }
-    else if (ph->protocol == proto_data_noack) {
-        session_on_data_noack(sess, result, (protocol_data_noack*)ph);
-    }
-    session_send_check(sess, result->tv);
-    sess->recv_last = timer_get_current_time();
 }

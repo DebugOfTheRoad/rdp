@@ -139,21 +139,6 @@ i32  socket_api_addr_len(const sockaddr *addr)
     }
     return 0;
 }
-bool socket_api_addr_comp(const sockaddr* addr1, const sockaddr* addr2)
-{
-    if (addr1->sa_family != addr2->sa_family) {
-        return false;
-    }
-    bool v4 = socket_api_addr_is_v4(addr1);
-    if (v4) {
-        sockaddr_in* in1 = (sockaddr_in*)addr1;
-        sockaddr_in* in2 = (sockaddr_in*)addr2;
-        return (in1->sin_port == in2->sin_port) && (0 == memcmp(&in1->sin_addr, &in2->sin_addr, sizeof(sockaddr_in)));
-    }
-    sockaddr_in6* in1 = (sockaddr_in6*)addr1;
-    sockaddr_in6* in2 = (sockaddr_in6*)addr2;
-    return (in1->sin6_port == in2->sin6_port) && (0 == memcmp(&in1->sin6_addr, &in2->sin6_addr, sizeof(sockaddr_in6)));
-}
 i32 socket_api_addr_from(const char* ip, ui32 port, sockaddr *addrto, bool* is_anyaddr)
 {
     i32 ret = RDPERROR_SUCCESS;
@@ -239,6 +224,19 @@ i32 socket_api_addr_to(const sockaddr* addrfrom, char* ip, ui32 iplen, ui32* por
     } while (0);
     return ret;
 }
+bool socket_api_addr_is_same(const sockaddr *addr1, const sockaddr *addr2, ui32 addrlen)
+{
+    ui8* caddr1 = (ui8*)addr1;
+    ui8* caddr2 = (ui8*)addr2;
+    for (ui32 i = 0; i < addrlen; ++i)
+    {
+        if (*caddr1++ != *caddr2++)
+        {
+            return false;
+        }
+    }
+    return true;
+}
 ui32 socket_api_jenkins_one_at_a_time_hash(ui8 *key, ui32 len)
 {
     ui32 hash, i;
@@ -253,21 +251,4 @@ ui32 socket_api_jenkins_one_at_a_time_hash(ui8 *key, ui32 len)
     return hash;
 }
 
-addrhash socket_api_addr_hash(sockaddr *addr)
-{
-    if (!addr) {
-        return 0;
-    }
-    bool v4 = socket_api_addr_is_v4(addr);
-    addrhash hash = 0;
-    if (v4) {
-        sockaddr_in* addr_in = (sockaddr_in*)addr;
-        hash = ((ui64)addr_in->sin_addr.S_un.S_addr << 8*sizeof(short)) | addr_in->sin_port;
-    } else {
-        //todo ip v6 地址hash无法保证唯一
-        sockaddr_in6* addr_in = (sockaddr_in6*)addr;
-        ui32 jenkins = socket_api_jenkins_one_at_a_time_hash(addr_in->sin6_addr.u.Byte, _countof(addr_in->sin6_addr.u.Byte));
-        hash = ((ui64)jenkins << 8 * sizeof(short)) | addr_in->sin6_port;
-    }
-    return hash;
-}
+ 

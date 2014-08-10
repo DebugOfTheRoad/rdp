@@ -61,11 +61,10 @@ sockaddr* socket_api_addr_create(const sockaddr *addr);
 void socket_api_addr_destroy(sockaddr *addr);
 bool socket_api_addr_is_v4(const sockaddr *addr);
 i32  socket_api_addr_len(const sockaddr *addr);
-bool socket_api_addr_comp(const sockaddr* addr1, const sockaddr* addr2);
 i32 socket_api_addr_from(const char* ip, ui32 port, sockaddr *addrto, bool* is_anyaddr = 0);
 i32 socket_api_addr_to(const sockaddr* addrfrom, char* ip, ui32 iplen, ui32* port);
-addrhash socket_api_addr_hash(sockaddr *addr);
-
+bool socket_api_addr_is_same(const sockaddr *addr1, const sockaddr *addr2, ui32 addrlen);
+ 
 ui32 socket_api_jenkins_one_at_a_time_hash(ui8 *key, ui32 len);
 
 #endif

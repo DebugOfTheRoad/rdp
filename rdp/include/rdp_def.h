@@ -6,9 +6,9 @@
 #define RDP_SDK_VERSION 0x00010001
 #define RDP_VERSION "0.1.0.1"
 
-//传入 (income)  :接收外部连接请求(服务器角色)
-//传出 (outcome) :主动连接外部(客户端角色)
-//rdp socket 可以同时支持income 和 outcome,即同时做服务器和客户端
+//传入 (in_come)  :接收外部连接请求(服务器角色)
+//传出 (out_come) :主动连接外部(客户端角色)
+//rdp socket 可以同时支持in_come 和 out_come,即同时做服务器和客户端
 
 //->rdp_startup
 //->rdp_socket_create
@@ -21,20 +21,16 @@
 
 //rdp socket状态
 typedef enum RDPSOCKETSTATUS {
-    RDPSOCKETSTATUS_NONE = 0, // 无
-    RDPSOCKETSTATUS_INIT,     // 初始
+    RDPSOCKETSTATUS_INIT = 1, // 初始
     RDPSOCKETSTATUS_BINDED,   // 已绑定
     RDPSOCKETSTATUS_LISTENING,// 监听
-    RDPSOCKETSTATUS_CLOSING,  // 关闭中
 } RDPSOCKETSTATUS;
 
 //会话状态
 typedef enum RDPSESSIONSTAUS {
-    RDPSESSIONSTATUS_INIT = 0,     // 会话初始状态
-    RDPSESSIONSTATUS_CONNECTING,   // 会话连接中
-    RDPSESSIONSTATUS_CONNECTED,    // 会话已连接
-    RDPSESSIONSTATUS_BROKEN,       // 心跳超时后会导致将状态转换到RDPSESSIONSTATUS_BROKEN，等待一段时间后，仍然无通信，关闭会话
-    RDPSESSIONSTATUS_DISCONNECTING,// 正在端开会话
+    RDPSESSIONSTATUS_INIT = 1,
+    RDPSESSIONSTATUS_CONNECTING ,   // 会话连接中
+    RDPSESSIONSTATUS_CONNECTED,     // 会话已连接
 } RDPOUTCOMESESSIONSTAUS;
 
 typedef enum RDPERROR {
@@ -57,6 +53,9 @@ typedef enum RDPERROR {
 
     RDPERROR_SESSION_INVALIDSESSIONID , //无效的sessionid
     RDPERROR_SESSION_BADSTATE ,         //错误的回话状态
+    RDPERROR_SESSION_CONNTIMEOUT,       //连接超时
+    RDPERROR_SESSION_HEARTBEATTIMEOUT,  //心跳超时
+    RDPERROR_SESSION_CONNRESET,         //连接重置:对方关闭socket等
 } RDPERROR;
 
 typedef enum RDPSESSIONSENDFLAG{
@@ -66,8 +65,7 @@ typedef enum RDPSESSIONSENDFLAG{
 
 typedef ui64 RDPSOCKET;     // != 0
 typedef ui64 RDPSESSIONID;  // != 0
-#define RDPMAXSOCKET 256    //rdp 支持创建的最大rdp socket数量
-
+ 
 
 struct sockaddr;
 typedef struct rdp_on_connect_param{
@@ -110,7 +108,7 @@ typedef struct rdp_on_send_param{
     RDPSOCKET        sock;
     RDPSESSIONID     session_id;
     ui32             local_send_queue_size;
-    ui32             peer_unused_recv_queue_size;
+    ui32             peer_window_size_;
 }rdp_on_send_param;
 
 typedef struct rdp_on_udp_recv_param{
@@ -131,7 +129,7 @@ typedef struct rdp_on_udp_send_param{
 
 typedef struct rdp_startup_param {
     ui32 version;         // rdp sdk 版本号 RDP_SDK_VERSION
-    ui16 max_sock;        // 最大rdp socket数量(应该小于等于RDPMAXSOCKET),默认1
+    ui8  max_sock;        // 最大rdp socket数量(应该小于等于RDPMAXSOCKET),默认1
     ui16 recv_thread_num; // 数据接收线程数量:后台数据接收线程数量,默认1
     ui32 recv_buf_size;   // 数据接收缓冲区大小:传递给recvfrom的缓冲区大小,默认4*1024,此值影响数据包最大能接收的大小
     
@@ -149,16 +147,17 @@ typedef struct rdp_startup_param {
     void(__cdecl*on_send)(const rdp_on_send_param& param);
     //on_udp_recv 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
     void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param& param);
+    //ip地址hash函数,可以为空
+    ui32(__cdecl*on_hash_addr)(const sockaddr* addr, ui32 addrlen);
 } rdp_startup_param;
 
 typedef struct rdp_socket_create_param {
-    bool v4;                    // 是否是ipv4
+    bool is_v4;                 // 是否是ipv4
     ui16 ack_timeout;           // 确认超时(在此时间内未收到确认包,认为超时,系统将自动重发),默认300 ms
     ui16 heart_beat_timeout;    // 心跳超时(每隔heart_beat_timeout,将会发一次心跳),默认180s
     ui16 max_send_queue_size;   // 已发送但是未确认的队列大小,默认1024,为0不限制,如果不为0,当达到max_send_queue_size后,rdp_session_send将会阻塞
     ui16 max_recv_queue_size;   // 接收队列最大大小,默认1024,为0不限制,如果不为0,接收队列(由于数据包到达先后顺序问题)中数据包数量达到此值时,将拒绝接收新数据包
-    ui32 in_session_hash_size;  // 传入会话hash大小,默认1
-    ui32 out_session_hash_size; // 传出回话hash大小,默认1
+    ui16 in_session_hash_size;  // 传入会话hash大小,默认1
 } rdp_socket_create_param;
 
 #endif

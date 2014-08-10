@@ -4,46 +4,97 @@
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
 #include "config.h"
-
-#include "socket_api.h"
-#include "socket.h"
-#include "send_buffer.h"
-#include "recv_buffer.h"
-#include "recv.h"
 #include "thread.h"
-
+#include "timer.h"
+#include "recv.h"
+#include "protocol.h"
+#include "socket_api.h"
+#include "send_buffer.h"
 #include <map>
 
-typedef std::map<ui32, send_buffer_ex*> send_buffer_list;
- 
+typedef union sessionid {
+    RDPSESSIONID sid;
+    struct __sid {
+        ui64 id : 32;
+        ui64 unused : 22;
+        ui64 is_in_come : 1;
+        ui64 is_v4 : 1;
+        ui64 socket_slot : 8;
+    } _sid;
+} sessionid;
 
-typedef struct session {
-    socket_handle     sh;
-    RDPSESSIONID      session_id; //
-    i8                state;      //RDPSTATUS
-    sockaddr*         addr;       //remote addr:sockaddr_in sockaddr_in6
-    send_buffer_list* send_buf_list;
-    ui32              send_seq_num_now;
-    timer_val         recv_last;//最后一次接收包时间    
-    ui16              peer_window_size;//对方接收窗口大小
-    ui16              ack_timerout;
-    timer_val         check_ack_last;
-} session;
+typedef std::map<ui32, send_buffer*> send_buffer_list;
 
+class SessionManager;
+class Session{
+public:
+    Session();
+    ~Session();
+    void create(SessionManager* manager, RDPSESSIONID session_id, const sockaddr* addr);
+    void destroy();
+    ui8 get_state(){
+        return state_;
+    }
+    void set_state(ui8 state){
+        state_ = state;
+    }
+    sockaddr* get_addr(){
+        return addr_;
+    }
+    RDPSESSIONID get_session_id(){
+        return session_id_.sid;
+    }
+    i32 ctrl(ui16 cmd);
+    i32 connect(ui32 timeout, const ui8* buf, ui16 buf_len);
+    i32 disconnect(ui16 reason);
+    i32 send(const ui8* buf, ui16 buf_len, ui32 flags);
+    void on_recv(protocol_header* ph);
+    void on_update(const timer_val& now);
+protected:
+    i32 ack(ui32* seq_num_ack, ui8 seq_num_ack_count);
+    i32 ctrl_ack(ui32 seq_num_ack, ui16 cmd, ui16 error);
+    i32 connect_ack(ui32 seq_num_ack, ui16 error);
+    i32 heartbeat();
 
-session* session_create(socket_handle sh, RDPSESSIONID session_id, const sockaddr* addr);
-void session_destroy(session* sess);
-i32 session_send_ctrl(session* sess, ui16 cmd);
-void session_send_ctrl_ack(session* sess, ui16 cmd, ui16 error);
-void session_send_ack(session* sess, ui32* seq_num_ack, ui8 seq_num_ack_count);
-i32 session_send_connect(session* sess, const ui8* data=0, ui32 data_size=0);
-void session_send_connect_ack(session* sess, ui16 error, ui16 heart_beat_timeout);
-i32 session_send_disconnect(session* sess, ui16 reason);
-i32 session_send_heartbeat(session* sess);
-i32 session_send_data(session* sess, const ui8* data, ui16 data_size,
-    ui32 flags,
-    ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size);
-void session_handle_recv(session* sess, recv_result* result);
-void session_send_check(session* sess, const timer_val& tv);
+    void on_ack(protocol_ack* p);
+    void on_ctrl(protocol_ctrl* p);
+    void on_ctrl_ack(protocol_ctrl_ack* p);
+    void on_connect(protocol_connect* p);
+    void on_connect_ack(protocol_connect_ack* p);
+    void on_disconnect(protocol_disconnect* p);
+    void on_heartbeat(protocol_heartbeat* p);
+    void on_data(protocol_data* p);
+    void on_data_noack(protocol_data_noack* p);
+
+    void on_handle_ack(ui32* seq_num_ack, ui8 seq_num_ack_count);
+    void on_handle_ctrl(protocol_ctrl* p);
+    void on_handle_ctrl_ack( protocol_ctrl_ack* p);
+    void on_handle_connect( protocol_connect* p);
+    void on_handle_connect_ack(protocol_connect_ack* p);
+    void on_handle_disconnect(protocol_disconnect* p);
+    void on_handle_heartbeat(protocol_heartbeat* p);
+    void on_handle_data(protocol_data* p);
+    void on_handle_data_noack( protocol_data_noack* p);
+protected:
+    SessionManager*   manager_;
+    sessionid         session_id_; //
+    i8                state_;      //RDPSTATUS
+    sockaddr*         addr_;
+
+    ui32              seq_num_;  //发送编号
+    timer_val         recv_last_;//最后一次接收包时间,计算心跳  
+    ui16              peer_window_size_;//对方接收窗口大小
+
+    ui16              peer_ack_timerout_;//对方包确认超时
+
+    send_buffer_list  send_buffer_list_;
+};
+
+inline bool session_is_in_come(RDPSESSIONID session_id)
+{
+    sessionid sid;
+    sid.sid = session_id;
+    return sid._sid.is_in_come == true;
+}
 
 #endif

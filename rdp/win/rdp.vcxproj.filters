@@ -51,13 +51,13 @@
     <ClCompile Include="..\src\epoll.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\send.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\protocol.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\recv_buffer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\session_manager.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -101,9 +101,6 @@
     <ClInclude Include="..\src\epoll.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\send.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\recv.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -118,6 +115,12 @@
     </ClInclude>
     <ClInclude Include="..\include\rdp_def.h">
       <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\session_manager.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\hash.h">
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,62 +1,75 @@
-#ifndef SOCKETS_H
-#define SOCKETS_H
- 
+#ifndef SOCKET_H
+#define SOCKET_H
+
 #include "../include/lint.h"
 #include "../include/platform.h"
 #include "../include/rdp_def.h"
 #include "config.h"
 #include "socket_api.h"
 #include "thread.h"
+#include "send_buffer.h"
+#include "recv.h"
 
-typedef struct socket_info{
-    //comment begin 下面注视部分数据，运行过程中不会发生变化，不需要使用socket_info锁
-    rdp_socket_create_param create_param;
 
-    mutex_handle      lock;
-    mutex_cond_handle cond;
-
-    sockaddr*         addr; //local addr
-    //comment end
-
-    SOCKET            sock;//需要使用socket_info加锁
-    ui8               state;//需要使用socket_info加锁
-    ui32              window_size;
-}socket_info;
+class SessionManager;
+class Socket
+{
+public:
+    Socket();
+    ~Socket();
+    const rdp_socket_create_param& get_create_param() {
+        return create_param_;
+    }
+    void startup(ui8 slot);
+    void cleanup();
+    i32 create(rdp_socket_create_param* param);
+    void destroy();
+    ui8 get_slot() {
+        return slot_;
+    }
+    mutex_handle get_lock(){
+        return lock_;
+    }
+    SOCKET get_socket() {
+        return socket_;
+    }
+    ui8 get_state(){
+        return state_;
+    }
+    sockaddr* get_addr(){
+        return addr_;
+    }
+    RDPSOCKET get_rdpsocket();
+    i32 bind(const char* ip, ui32 port);
+    i32 listen();
+    i32 connect(const char* ip, ui32 port, ui32 timeout, const ui8* buf, ui16 buf_len , RDPSESSIONID* session_id);
+    i32 session_close(RDPSESSIONID session_id, i32 reason);
+    i32 session_get_state(RDPSESSIONID session_id, ui32* state);
+    i32 session_send(RDPSESSIONID session_id, const ui8* buf, ui16 buf_len, ui32 flags);
+    i32 udp_send(const char* ip, ui32 port, const ui8* buf, ui16 buf_len);
  
-typedef void* socket_handle;
+    void on_recv(thread_handle handle, recv_result* result);
+    void on_update(thread_handle handle, const timer_val& now);
+    i32 send(send_buffer* send_buf);
+protected:
+    rdp_socket_create_param create_param_;
+    ui8                     slot_;
+    mutex_handle            lock_;
+    ui8                     state_;
+    SOCKET                  socket_;
+    sockaddr*               addr_;
+    SessionManager*         sm_;
+};
+const rdp_startup_param& socket_get_startup_param();
 
-extern ui32 s_max_udp_dg ;
-extern rdp_startup_param s_socket_startup_param;
-
-socket_handle RDPSOCKET2socket_handle(RDPSOCKET sock);
-RDPSOCKET socket_handle2RDPSOCKET(socket_handle handle);
-socket_info* socket_get_socket_info(SOCKET sock);
-socket_info* socket_get_socket_info(socket_handle handle);
+Socket* socket_get_from_socket(SOCKET sock, mutex_handle& lock);
+Socket* socket_get_from_rdpsocket(RDPSOCKET sock, mutex_handle& lock);
 
 i32 socket_startup(rdp_startup_param* param);
 i32 socket_cleanup();
 i32 socket_startup_get_param(rdp_startup_param* param);
-i32 socket_create(rdp_socket_create_param* param, socket_handle* handle);
-i32 socket_get_create_param(socket_handle handle, rdp_socket_create_param* param);
-i32 socket_get_state(socket_handle handle, ui32* state);
-i32 socket_destroy(socket_handle handle);
-i32 socket_bind(socket_handle handle, const char* ip, ui32 port);
-i32 socket_listen(socket_handle handle);
-i32 socket_connect(socket_handle handle, const char* ip, ui32 port, ui32 timeout, 
-    RDPSESSIONID* session_id, const ui8* buf, ui16 buf_len);
+i32 socket_create(rdp_socket_create_param* param, Socket** socket, mutex_handle& lock_out);
 
-i32 socket_getsyserror();
-i32 socket_getsyserrordesc(i32 err, char* desc, ui32 desc_len);
-i32 socket_session_close(socket_handle handle, RDPSESSIONID session_id);
-i32 socket_session_get_state(socket_handle handle, RDPSESSIONID session_id, ui32* state);
-i32 socket_session_send(socket_handle handle, RDPSESSIONID session_id, const ui8* buf, ui16 buf_len,
-    ui32 flags,
-    ui32* local_send_queue_size, ui32* peer_unused_recv_queue_size);
-bool socket_session_is_income(RDPSESSIONID session_id);
-
-i32 socket_udp_send(socket_handle handle, const char* ip, ui32 port, const ui8* buf, ui16 buf_len);
-
-i32 socket_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port);
 
 #ifdef PLATFORM_CONFIG_TEST
 void socket_test();

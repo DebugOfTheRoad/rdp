@@ -81,7 +81,8 @@ typedef struct protocol_ctrl_ack : public protocol_header {
 typedef struct protocol_connect : public protocol_header {
     ui32 seq_num;     //编号
     ui16 ack_timeout; //确认超时
-    ui16 data_size; //数据大小
+    ui16 connect_timeout;     //登录超时
+    ui16 data_size;   //数据大小
     //ui8* data;
 
     protocol_connect()
@@ -117,9 +118,7 @@ typedef struct protocol_connect_ack : public protocol_header {
 } protocol_connect_ack;
 
 typedef struct protocol_disconnect : public protocol_header {
-    ui32 seq_num;     //编号
     ui16 reason;
-    ui8  need_ack;
 
     typedef enum disconnect_reason {
         disconnect_reason_none = 0, //
@@ -127,18 +126,13 @@ typedef struct protocol_disconnect : public protocol_header {
 
     protocol_disconnect()
         :protocol_header(proto_disconnect) {
-        seq_num = 0;
         reason = 0;
-        need_ack = false;
     }
 } protocol_disconnect;
 
 typedef struct protocol_heartbeat : public protocol_header {
-    ui32 seq_num;     //编号
-
     protocol_heartbeat()
         :protocol_header(proto_heartbeat) {
-        seq_num = 0;
     }
 } protocol_heartbeat;
 

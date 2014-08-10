@@ -60,7 +60,11 @@ timer_val timer_after_time(const timer_val& time_from, const timer_val& time_int
 
     return t;
 }
-ui64 timer_sub_msec(const timer_val& now, const timer_val& before)
+i64 timer_sub_sec(const timer_val& now, const timer_val& before)
+{
+    return (now.tv_sec - before.tv_sec);
+}
+i64 timer_sub_msec(const timer_val& now, const timer_val& before)
 {
     return (now.tv_sec - before.tv_sec) * 1000 + now.tv_msec - before.tv_msec;
 }

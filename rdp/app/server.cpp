@@ -53,10 +53,9 @@ int server()
     }
 
     rdp_socket_create_param socket_create_param = { 0 };
-    socket_create_param.v4 = true;
+    socket_create_param.is_v4 = true;
     socket_create_param.in_session_hash_size = 1024;
-    socket_create_param.out_session_hash_size = 1;
-
+ 
     RDPSOCKET sock = 0;
     ret = rdp_socket_create(&socket_create_param, &sock);
     if (ret < 0) {
