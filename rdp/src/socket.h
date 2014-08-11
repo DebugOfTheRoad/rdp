@@ -62,7 +62,7 @@ protected:
 };
 const rdp_startup_param& socket_get_startup_param();
 
-Socket* socket_get_from_socket(SOCKET sock, mutex_handle& lock);
+Socket* socket_get_from_slot_socket(ui8 slot, SOCKET sock, mutex_handle& lock);
 Socket* socket_get_from_rdpsocket(RDPSOCKET sock, mutex_handle& lock);
 
 i32 socket_startup(rdp_startup_param* param);

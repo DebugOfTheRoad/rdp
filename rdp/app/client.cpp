@@ -133,14 +133,11 @@ int client()
                 ui32 local_send_queue_size = 0;
                 ui32 peer_unused_recv_queue_size = 0;
                 DWORD dw1 = GetTickCount();
-                ret = rdp_udp_send(sock, "157.4.0.1", 9000, (const ui8*)p, len);
+                ret = rdp_udp_send(sock, "10.0.0.1", 9000, (const ui8*)p, len);
                 DWORD dw2 = GetTickCount();
                 if (ret < 0) {
                     printf("rdp_udp_send failed %d\n", ret);
                     break;
-                }
-                else{
-                    printf("rdp_udp_send udp %d : %d\n", ret, dw2 - dw1);
                 }
                 if (local_send_queue_size > 1024 * 1024){
 #ifdef PLATFORM_OS_WINDOWS

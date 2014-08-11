@@ -81,6 +81,7 @@ public:
     i32 close(RDPSESSIONID session_id, ui16 reason, bool send_disconnect = true);
     i32 get_state(RDPSESSIONID session_id, ui32*state);
     i32 send(RDPSESSIONID session_id, const ui8* buf, ui16 buf_len, ui32 flags);
+    i32 udp_send(sockaddr* addr, const ui8* buf, ui16 buf_len);
     void on_recv(thread_handle handle, recv_result* result);
     void on_update(thread_handle handle, const timer_val& now);
 protected:

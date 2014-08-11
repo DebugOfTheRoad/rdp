@@ -23,6 +23,15 @@ ui32              s_max_udp_dg = 0;
 rdp_startup_param s_startup_param = { 0 };
 static Socket     s_socket_list[256];
 
+inline RDPSOCKET slot2RDPSOCKET(ui16 slot)
+{
+    return (slot + 1) ^ SOCKET_SLOT_SEED;
+}
+inline ui16 RDPSOCKET2slot(RDPSOCKET sock)
+{
+    sock ^= SOCKET_SLOT_SEED;
+    return sock - 1;
+}
 //////////////////////////////////////////////////////////////////////////
 Socket::Socket()
 {
@@ -96,7 +105,7 @@ void Socket::destroy()
 }
 RDPSOCKET Socket::get_rdpsocket()
 {
-    return (slot_ + 1) ^ SOCKET_SLOT_SEED;
+    return slot2RDPSOCKET(slot_);
 }
 i32 Socket::bind(const char* ip, ui32 port)
 {
@@ -116,9 +125,9 @@ i32 Socket::bind(const char* ip, ui32 port)
             break;
         }
 #ifdef PLATFORM_OS_WINDOWS
-        ret = iocp_attach(socket_, create_param_.is_v4);
+        ret = iocp_attach(slot_, socket_, create_param_.is_v4);
 #else
-        ret = epoll_attach(socket_, create_param_.is_v4);
+        ret = epoll_attach(slot_, socket_, create_param_.is_v4);
 #endif
         if (ret != RDPERROR_SUCCESS) {
             break;
@@ -194,24 +203,7 @@ i32 Socket::udp_send(const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
         if (ret != RDPERROR_SUCCESS) {
             break;
         }
-
-        protocol_udp_data pack;
-        pack.data_size = buf_len;
-        protocol_set_header(&pack);
-
-        send_buffer sb;
-        memset(&sb, 0, sizeof(send_buffer));
-        sb.buf = buffer_create(sizeof(protocol_udp_data)+buf_len);
-        memcpy(sb.buf.ptr, &pack, sizeof(protocol_udp_data));
-        memcpy(sb.buf.ptr + sizeof(protocol_udp_data), buf, buf_len);
-        sb.addr = addr_in;
-        sb.socket = socket_;
-        sb.session_id = 0;
-        sb.seq_num = 0;
-
-        ret = send(&sb);
-
-        buffer_destroy(sb.buf);
+        ret = sm_->udp_send(addr_in, buf, buf_len);
     } while (0);
 
     return ret;
@@ -257,24 +249,26 @@ const rdp_startup_param& socket_get_startup_param()
 {
     return s_startup_param;
 }
-Socket* socket_get_from_socket(SOCKET sock, mutex_handle& lock)
+Socket* socket_get_from_slot_socket(ui8 slot, SOCKET sock, mutex_handle& lock)
 {
-    for (ui8 i = 0; i < s_startup_param.max_sock; ++i) {
-        Socket& socket = s_socket_list[i];
-        mutex_handle lo = socket.get_lock();
-        mutex_lock(lo);
-        if (socket.get_socket() == sock) {
-            lock = lo;
-            return &socket;
-        }
-        mutex_unlock(lo);
+    if (slot >= s_startup_param.max_sock){
+        return 0;
     }
+   
+    Socket& socket = s_socket_list[slot];
+    mutex_handle lo = socket.get_lock();
+    mutex_lock(lo);
+    if (socket.get_socket() == sock) {
+        lock = lo;
+        return &socket;
+    }
+    mutex_unlock(lo);
+     
     return 0;
 }
 Socket* socket_get_from_rdpsocket(RDPSOCKET sock, mutex_handle& lock)
 {
-    sock ^= SOCKET_SLOT_SEED;
-    ui64 slot = sock - 1;
+    ui32 slot = RDPSOCKET2slot(sock);
     if (slot >= s_startup_param.max_sock) {
         return 0;
     }
@@ -402,7 +396,7 @@ void socket_recv_result_callback(thread_handle handle, recv_result* result)
 {
     do {
         mutex_handle lock = 0;
-        Socket* socket = socket_get_from_socket(result->sock, lock);
+        Socket* socket = socket_get_from_slot_socket(result->slot, result->sock, lock);
         if (!socket) {
             break;
         }

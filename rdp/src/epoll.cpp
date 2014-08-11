@@ -5,6 +5,15 @@
 
 #ifdef PLATFORM_OS_LINUX
 
+typedef union epoll_userdata{
+    struct __data{
+        ui32 is_v4 : 1;
+        ui32 slot : 8;
+        ui32 unused : 23;
+    }_data;
+    ui32 data;
+}epoll_userdata;
+
 static int s_eid = -1;
 
 static thread_handle s_thread_list[256] = { 0 };
@@ -55,13 +64,19 @@ i32 epoll_destroy()
 
     return  RDPERROR_SUCCESS;
 }
-i32 epoll_attach(SOCKET sock, bool v4)
+i32 epoll_attach(ui8 slot, SOCKET sock, bool v4)
 {
     int ret = RDPERROR_SUCCESS;
     do {
+        epoll_userdata eu;
+        eu._data.slot = slot;
+        eu._data.is_v4 = v4;
+        eu._data.unused = 0;
+
         epoll_event ev;
         memset(&ev, 0, sizeof(epoll_event));
         ev.events = EPOLLIN | EPOLLERR;
+        ev.data.ptr = (void*)eu.data;
         ev.data.fd = sock;
         int n = ::epoll_ctl(s_eid, EPOLL_CTL_ADD, sock, &ev);
         if (n < 0) {
@@ -93,18 +108,20 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     thread_info* ti = thread_get_thread_info(handle);
     const rdp_startup_param& param = socket_get_startup_param();
     buffer buf = buffer_create(param.recv_buf_size);
-    char addr[sizeof(sockaddr_in6)] = { 0 };
-    int addrlen = sizeof(addr);
-
+    
+    sockaddr_in6 addr = { 0 };
     timer_val now = { 0 };
     recv_result result = {0};
-    epoll_event* ev = new epoll_event[param.max_sock[;
+    
+
+    epoll_event* ev = new epoll_event[param.max_sock];
 
     while (ti->state != thread_state_quit) {
         sigset_t origmask;
         sigprocmask(SIG_SETMASK, &sigmask, &origmask);
         int nfds = epoll_pwait(s_eid, ev, param.max_sock, 1/*EPOLL_TIME_OUT*/);//(linux core :2.6.19) (glibc :2.6)
         sigprocmask(SIG_SETMASK, &origmask, NULL);
+
         if (ti->state == thread_state_quit) {
             break;
         }
@@ -116,13 +133,18 @@ void* __cdecl recv_thread_proc(thread_handle handle)
             s_recv_result_timeout_callback(handle, now);
         } else {
             for (int i = 0; i < nfds; ++i) {
-                if (ev[i].events & EPOLLIN)) {
-                    SOCKET sock = ev[i].data.fd;
-                    addrlen = sizeof(addr);
+                epoll_event& event = ev[i].events;
+                if (event & EPOLLIN)) {
+                    SOCKET sock = event.data.fd;
+                    epoll_userdata eu;
+                    eu.data = (ui32)event.data.ptr;
+
+                    int addrlen = eu._data.is_v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
                     int ret = socket_api_recvfrom(sock, buf, 0, (sockaddr*)addr, &addrlen);
                     if (ret >= 0)  {
+                        result.slot = eu._data.slot;
                         result.sock = sock;
-                        result.addr = (sockaddr*)addr;
+                        result.addr = (sockaddr*)&addr;
                         result.buf = buf;
                         result.now = now;
                         s_recv_result_callback(handle, &result);

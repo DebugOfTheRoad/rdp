@@ -12,7 +12,7 @@ Session::Session()
     manager_ = 0;
     session_id_.sid = 0;
     state_ = RDPSESSIONSTATUS_NONE;
-    addr_ = 0;
+    memset(&addr_, 0, sizeof(sockaddr_in6));
     seq_num_ = 1;
     memset(&recv_last_, 0, sizeof(recv_last_));
     peer_window_size_ = 1024;
@@ -27,7 +27,13 @@ void Session::create(SessionManager* manager, RDPSESSIONID session_id, const soc
     manager_ = manager;
     session_id_.sid = session_id;
     state_ = RDPSESSIONSTATUS_INIT;
-    addr_ = socket_api_addr_create(addr);
+
+    if (addr->sa_family == AF_INET) {
+        memcpy(&addr_, addr, sizeof(sockaddr_in));
+    }
+    else {
+        memcpy(&addr_, addr, sizeof(sockaddr_in6));
+    }
 }
 void Session::destroy()
 {
@@ -45,8 +51,7 @@ void Session::destroy()
     peer_ack_timerout_ = 128;
     state_ = RDPSESSIONSTATUS_INIT;
     session_id_.sid = 0;
-    socket_api_addr_destroy(addr_);
-    addr_ = 0;
+    memset(&addr_, 0, sizeof(sockaddr_in6));
     manager_ = 0;
 }
 i32 Session::ctrl(ui16 cmd)
@@ -66,7 +71,7 @@ i32 Session::ctrl(ui16 cmd)
         send_buffer* sb = alloc_new_object<send_buffer>();
         memset(sb, 0, sizeof(send_buffer));
         sb->buf = buffer_create((const ui8*)&pack, sizeof(protocol_ctrl));
-        sb->addr = addr_;
+        sb->addr = get_addr();
         sb->session_id = session_id_.sid;
         sb->seq_num = seq_num;
         sb->peer_ack_timerout = peer_ack_timerout_;
@@ -110,7 +115,7 @@ i32 Session::connect(ui32 timeout, const ui8* buf, ui16 buf_len)
         sb->buf = buffer_create(sizeof(protocol_connect)+buf_len);
         memcpy(sb->buf.ptr, &pack, sizeof(protocol_connect));
         memcpy(sb->buf.ptr + sizeof(protocol_connect), buf, buf_len);
-        sb->addr = addr_;
+        sb->addr = get_addr();
         sb->session_id = session_id_.sid;
         sb->seq_num = seq_num;
         sb->peer_ack_timerout = peer_ack_timerout_;
@@ -146,7 +151,7 @@ i32 Session::disconnect(ui16 reason)
         sb.buf.ptr = (ui8*)&pack;
         sb.buf.capcity = sizeof(protocol_disconnect);
         sb.buf.length = sb.buf.capcity;
-        sb.addr = addr_;
+        sb.addr = get_addr();
         sb.session_id = session_id_.sid;
         sb.seq_num = 0;
 
@@ -189,7 +194,7 @@ i32 Session::send(const ui8* buf, ui16 buf_len, ui32 flags)
             sb->buf = buffer_create(sizeof(protocol_data)+buf_len);
             memcpy(sb->buf.ptr, &pack, sizeof(protocol_data));
             memcpy(sb->buf.ptr + sizeof(protocol_data), buf, buf_len);
-            sb->addr = addr_;
+            sb->addr = get_addr();
             sb->session_id = session_id_.sid;
             sb->seq_num = seq_num;
             sb->peer_ack_timerout = peer_ack_timerout_;
@@ -212,7 +217,7 @@ i32 Session::send(const ui8* buf, ui16 buf_len, ui32 flags)
             sb.buf = buffer_create(sizeof(protocol_data_noack)+buf_len);
             memcpy(sb.buf.ptr, &pack, sizeof(protocol_data_noack));
             memcpy(sb.buf.ptr + sizeof(protocol_data_noack), buf, buf_len);
-            sb.addr = addr_;
+            sb.addr = get_addr();
             sb.session_id = session_id_.sid;
             sb.seq_num = 0;
 
@@ -235,7 +240,7 @@ i32 Session::heartbeat()
         sb.buf.ptr = (ui8*)&pack;
         sb.buf.capcity = sizeof(protocol_heartbeat);
         sb.buf.length = sb.buf.capcity;
-        sb.addr = addr_;
+        sb.addr = get_addr();
         sb.session_id = session_id_.sid;
         sb.seq_num = 0;
 
@@ -268,7 +273,7 @@ i32 Session::ack(ui32* seq_num_ack, ui8 seq_num_ack_count)
         sb.buf.capcity = sb.buf.length;
         memcpy(sb.buf.ptr, &pack, sizeof(protocol_ack));
         memcpy(sb.buf.ptr + sizeof(protocol_ack), (char*)seq_num_ack, seq_num_ack_count*sizeof(ui32));
-        sb.addr = addr_;
+        sb.addr = get_addr();
         sb.session_id = session_id_.sid;
         sb.seq_num = 0;
 
@@ -291,7 +296,7 @@ i32 Session::ctrl_ack(ui32 seq_num_ack, ui16 cmd, ui16 error)
         sb.buf.ptr = (ui8*)&pack;
         sb.buf.length = sizeof(protocol_ctrl_ack);
         sb.buf.capcity = sb.buf.length;
-        sb.addr = addr_;
+        sb.addr = get_addr();
         sb.session_id = session_id_.sid;
         sb.seq_num = 0;
 
@@ -318,7 +323,7 @@ i32 Session::connect_ack(ui32 seq_num_ack, ui16 error)
         sb.buf.ptr = (ui8*)&pack;
         sb.buf.length = sizeof(protocol_connect_ack);
         sb.buf.capcity = sb.buf.length;
-        sb.addr = addr_;
+        sb.addr = get_addr();
         sb.session_id = session_id_.sid;
         sb.seq_num = 0;
 
@@ -518,7 +523,7 @@ void Session::on_update(const timer_val& now)
         if (timer_is_empty(recv_last_)) {
             recv_last_ = now;
         } else {
-            i32 sec = timer_sub_sec(now, recv_last_);
+            i64 sec = timer_sub_sec(now, recv_last_);
             if (sec >= scparam.heart_beat_timeout*4/5) {
                 if (!session_is_in_come(session_id_.sid)) {
                     heartbeat();

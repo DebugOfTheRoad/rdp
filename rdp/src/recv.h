@@ -9,6 +9,7 @@
 
  
 typedef struct recv_result {
+    ui8       slot;
     SOCKET    sock;
     sockaddr* addr;
     buffer    buf;

@@ -63,7 +63,7 @@ typedef enum RDPSESSIONSENDFLAG{
     RDPSESSIONSENDFLAG_INORDER = 0x10, //按顺序送达
 }RDPSESSIONSENDFLAG;
 
-typedef ui64 RDPSOCKET;     // != 0
+typedef ui32 RDPSOCKET;     // != 0
 typedef ui64 RDPSESSIONID;  // != 0
  
 
@@ -129,7 +129,7 @@ typedef struct rdp_on_udp_send_param{
 
 typedef struct rdp_startup_param {
     ui32 version;         // rdp sdk 版本号 RDP_SDK_VERSION
-    ui8  max_sock;        // 最大rdp socket数量(应该小于等于RDPMAXSOCKET),默认1
+    ui8  max_sock;        // 最大rdp socket数量(应该小于等于256),默认1
     ui16 recv_thread_num; // 数据接收线程数量:后台数据接收线程数量,默认1
     ui32 recv_buf_size;   // 数据接收缓冲区大小:传递给recvfrom的缓冲区大小,默认4*1024,此值影响数据包最大能接收的大小
     

@@ -12,7 +12,7 @@
 
 i32 iocp_create(recv_result_callback cb, recv_result_timeout_callback tcb);
 i32 iocp_destroy();
-i32 iocp_attach(SOCKET sock, bool v4);
+i32 iocp_attach(ui8 slot, SOCKET sock, bool v4);
 i32 iocp_detach(SOCKET sock);
 
 #endif

@@ -213,6 +213,32 @@ i32 SessionManager::send(RDPSESSIONID session_id, const ui8* buf, ui16 buf_len, 
     } while (0);
     return ret;
 }
+i32 SessionManager::udp_send(sockaddr* addr, const ui8* buf, ui16 buf_len)
+{
+    i32 ret = RDPERROR_SUCCESS;
+
+    do {
+        protocol_udp_data pack;
+        pack.data_size = buf_len;
+        protocol_set_header(&pack);
+
+        send_buffer sb;
+        memset(&sb, 0, sizeof(send_buffer));
+        sb.buf = buffer_create(sizeof(protocol_udp_data)+buf_len);
+        memcpy(sb.buf.ptr, &pack, sizeof(protocol_udp_data));
+        memcpy(sb.buf.ptr + sizeof(protocol_udp_data), buf, buf_len);
+        sb.addr = addr;
+        sb.socket = socket_->get_socket();
+        sb.session_id = 0;
+        sb.seq_num = 0;
+
+        ret = socket_->send(&sb);
+
+        buffer_destroy(sb.buf);
+    } while (0);
+
+    return ret;
+}
 void SessionManager::on_recv(thread_handle handle, recv_result* result)
 {
     do {

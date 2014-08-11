@@ -39,7 +39,7 @@ public:
         state_ = state;
     }
     sockaddr* get_addr(){
-        return addr_;
+        return (sockaddr*)&addr_; 
     }
     RDPSESSIONID get_session_id(){
         return session_id_.sid;
@@ -79,7 +79,7 @@ protected:
     SessionManager*   manager_;
     sessionid         session_id_; //
     i8                state_;      //RDPSTATUS
-    sockaddr*         addr_;
+    sockaddr_in6      addr_;
 
     ui32              seq_num_;  //发送编号
     timer_val         recv_last_;//最后一次接收包时间,计算心跳  

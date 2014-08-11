@@ -15,6 +15,7 @@ typedef enum iocp_opertion {
 
 typedef struct iocp_buffer {
     WSAOVERLAPPED ol;
+    ui8           slot;
     SOCKET        socket;
     bool          v4;
     sockaddr*     addr;
@@ -32,12 +33,13 @@ static recv_result_timeout_callback  s_recv_result_timeout_callback = 0;
 
 void* __cdecl recv_thread_proc(thread_handle handle);
 
-static iocp_buffer* iocp_create_buffer(SOCKET sock, bool v4)
+static iocp_buffer* iocp_create_buffer(ui8 slot, SOCKET sock, bool v4)
 {
     const rdp_startup_param& param = socket_get_startup_param();
 
     iocp_buffer* ioBuffer = alloc_new_object<iocp_buffer>();
     SecureZeroMemory((PVOID)&ioBuffer->ol, sizeof(WSAOVERLAPPED));
+    ioBuffer->slot = slot;
     ioBuffer->socket = sock;
     ioBuffer->v4 = v4;
     ioBuffer->addr = socket_api_addr_create(v4, 0);
@@ -101,10 +103,10 @@ i32 iocp_destroy()
 
     return  RDPERROR_SUCCESS;
 }
-i32 iocp_attach(SOCKET sock, bool v4)
+i32 iocp_attach(ui8 slot, SOCKET sock, bool v4)
 {
     i32 ret = RDPERROR_SUCCESS;
-    iocp_buffer* ioBuffer = iocp_create_buffer(sock, v4);
+    iocp_buffer* ioBuffer = iocp_create_buffer(slot, sock, v4);
     const rdp_startup_param& param = socket_get_startup_param();
 
     do {
@@ -155,10 +157,10 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     LPOVERLAPPED lpOverlapped    = NULL;
     DWORD dwLastError = 0;
 
+    sockaddr_in6 addr = { 0 };
     timer_val now = {0};
     recv_result result = { 0 };
-    sockaddr_in6 addr = { 0 };
-
+    
     while (ti->state != thread_state_quit) {
         BOOL bRet = GetQueuedCompletionStatus(s_iocp,
                                               &dwTransferd,
@@ -193,7 +195,7 @@ void* __cdecl recv_thread_proc(thread_handle handle)
 
         if (ioBuffer->op == iocp_opertion_recv) {
             memcpy(&addr, ioBuffer->addr, ioBuffer->addr->sa_family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
-
+            result.slot = ioBuffer->slot;
             result.sock = ioBuffer->socket;
             result.addr = ioBuffer->addr;
             result.buf.ptr = (ui8*)ioBuffer->buf.buf;
