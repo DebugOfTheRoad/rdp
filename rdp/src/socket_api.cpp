@@ -191,11 +191,11 @@ i32 socket_api_addr_from(const char* ip, ui32 port, sockaddr *addrto, bool* is_a
     } while (0);
     return ret;
 }
-i32 socket_api_addr_to(const sockaddr* addrfrom, char* ip, ui32 iplen, ui32* port)
+i32 socket_api_addr_to(const sockaddr* addrfrom, char* ip, ui32* iplen, ui32* port)
 {
     i32 ret = RDPERROR_SUCCESS;
     do {
-        if (!addrfrom || !ip) {
+        if (!addrfrom || !ip || !iplen) {
             ret = RDPERROR_INVALIDPARAM;
             break;
         }
@@ -206,20 +206,22 @@ i32 socket_api_addr_to(const sockaddr* addrfrom, char* ip, ui32 iplen, ui32* por
             if (port) {
                 *port = ntohs(addr->sin_port);
             }
-            if (0 >= inet_ntop(addr->sin_family, &addr->sin_addr, ip, iplen)) {
+            if (0 >= inet_ntop(addr->sin_family, &addr->sin_addr, ip, *iplen)) {
                 ret = RDPERROR_SYSERROR;
                 break;
             }
+            *iplen = strlen(ip);
         } else {
             sockaddr_in6* addr = (sockaddr_in6*)addrfrom;
             addr->sin6_family = AF_INET6;
             if (port) {
                 *port = ntohs(addr->sin6_port);
             }
-            if (0 >= inet_ntop(addr->sin6_family, &addr->sin6_addr, ip, iplen)) {
+            if (0 >= inet_ntop(addr->sin6_family, &addr->sin6_addr, ip, *iplen)) {
                 ret = RDPERROR_SYSERROR;
                 break;
             }
+            *iplen = strlen(ip);
         }
     } while (0);
     return ret;

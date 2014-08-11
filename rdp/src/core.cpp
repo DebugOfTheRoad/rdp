@@ -196,11 +196,6 @@ i32 core_socket_listen(RDPSOCKET sock)
             ret = RDPERROR_NOTINIT;
             break;
         }
-        const rdp_startup_param& param = socket_get_startup_param();
-        if (!param.on_accept) {
-            ret = RDPERROR_SOCKET_ONACCEPTNOTSET;
-            break;
-        }
         mutex_handle lock = 0;
         Socket* socket = socket_get_from_rdpsocket(sock, lock);
         if (!socket) {
@@ -221,11 +216,6 @@ i32 core_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout,
     do {
         if (!s_init) {
             ret = RDPERROR_NOTINIT;
-            break;
-        }
-        const rdp_startup_param& param = socket_get_startup_param();
-        if (!param.on_connect) {
-            ret = RDPERROR_SOCKET_ONCONNECTNOTSET;
             break;
         }
         if (!session_id) {
@@ -328,11 +318,6 @@ i32 core_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui1
             ret = RDPERROR_NOTINIT;
             break;
         }
-        const rdp_startup_param& param = socket_get_startup_param();
-        if (!param.on_udp_recv) {
-            ret = RDPERROR_SOCKET_ONUDPRECVNOTSET;
-            break;
-        }
         if (!buf || buf_len == 0) {
             break;
         }
@@ -348,15 +333,15 @@ i32 core_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui1
 
     return  ret;
 }
-i32 core_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port)
+i32 core_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32* iplen, ui32* port)
 {
     if (addr->sa_family == AF_INET) {
-        if (addrlen != sizeof(sockaddr_in) || iplen < sizeof(sockaddr_in)) {
+        if (addrlen != sizeof(sockaddr_in) || *iplen < sizeof(sockaddr_in)) {
             return RDPERROR_INVALIDPARAM;
         }
     }
     if (addr->sa_family == AF_INET6) {
-        if (addrlen != sizeof(sockaddr_in6) || iplen < sizeof(sockaddr_in6)) {
+        if (addrlen != sizeof(sockaddr_in6) || *iplen < sizeof(sockaddr_in6)) {
             return RDPERROR_INVALIDPARAM;
         }
     }

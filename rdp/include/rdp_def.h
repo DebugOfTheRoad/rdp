@@ -63,6 +63,10 @@ typedef enum RDPSESSIONSENDFLAG{
     RDPSESSIONSENDFLAG_INORDER = 0x10, //按顺序送达
 }RDPSESSIONSENDFLAG;
 
+typedef enum RDPSESSIONDISCONNECTRESSON{
+    DISCONNECTRESSON_NONE = 0,
+}RDPSESSIONDISCONNECTRESSON;
+
 typedef ui32 RDPSOCKET;     // != 0
 typedef ui64 RDPSESSIONID;  // != 0
  
@@ -74,26 +78,29 @@ typedef struct rdp_on_connect_param{
     RDPSESSIONID session_id;
 }rdp_on_connect_param;
 
-typedef struct rdp_on_before_accept{
+typedef struct rdp_on_before_accept_param{
     RDPSOCKET        sock;
     RDPSESSIONID     session_id;
     const sockaddr*  addr;
     ui32             addrlen;
     const ui8*       buf;
     ui32             buf_len;
-}rdp_on_before_accept;
+}rdp_on_before_accept_param;
 
-typedef rdp_on_before_accept rdp_on_accept;
+typedef struct rdp_on_accept_param{
+    RDPSOCKET        sock;
+    RDPSESSIONID     session_id;
+    const sockaddr*  addr;
+    ui32             addrlen;
+    const ui8*       buf;
+    ui32             buf_len;
+}rdp_on_accept_param;
 
 typedef struct rdp_on_disconnect_param{
     i32          err;
-    ui16         reason;
+    ui16         reason;//RDPSESSIONDISCONNECTRESSON
     RDPSOCKET    sock;
     RDPSESSIONID session_id;
-
-    typedef enum disconnect_reason{
-        disconnect_reason_none = 0,
-    }disconnect_reason;
 }rdp_on_disconnect_param;
 
 typedef struct rdp_on_recv_param{
@@ -119,34 +126,12 @@ typedef struct rdp_on_udp_recv_param{
     ui16             buf_len;
 }rdp_on_udp_recv_param;
 
-typedef struct rdp_on_udp_send_param{
-    i32              err;
-    RDPSOCKET        sock;
-    RDPSESSIONID     session_id;
-    const sockaddr*  addr;
-    ui32             addrlen;
-}rdp_on_udp_send_param;
 
 typedef struct rdp_startup_param {
     ui32 version;         // rdp sdk 版本号 RDP_SDK_VERSION
     ui8  max_sock;        // 最大rdp socket数量(应该小于等于256),默认1
     ui16 recv_thread_num; // 数据接收线程数量:后台数据接收线程数量,默认1
     ui32 recv_buf_size;   // 数据接收缓冲区大小:传递给recvfrom的缓冲区大小,默认4*1024,此值影响数据包最大能接收的大小
-    
-    //on_connect 传出连接回调,如果不设置此回调,将不允许传出
-    void(__cdecl*on_connect)(const rdp_on_connect_param* param);
-    //on_before_accept 接受传入连接前,会调用此回调,可以用来过滤连接,可以为空;返回false将拒绝此连接请求(不会响应请求端)
-    bool(__cdecl*on_before_accept)(const rdp_on_before_accept* param);
-    //on_accept 传入连接回调,如果不设置此回调,将不允许传入
-    void(__cdecl*on_accept)(const rdp_on_accept* param);
-    //on_disconnect 连接断开回调,必须设置
-    void(__cdecl*on_disconnect)(const rdp_on_disconnect_param* param);
-    //on_recv 数据接收回调,必须设置
-    void(__cdecl*on_recv)(const rdp_on_recv_param* param);
-    //on_send 连接,不可靠的数据接收回调,该类型数据的发送使用rdp_session_send
-    void(__cdecl*on_send)(const rdp_on_send_param* param);
-    //on_udp_recv 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
-    void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param* param);
     //ip地址hash函数,可以为空
     ui32(__cdecl*on_hash_addr)(const sockaddr* addr, ui32 addrlen);
 } rdp_startup_param;
@@ -158,6 +143,21 @@ typedef struct rdp_socket_create_param {
     ui16 max_send_queue_size;   // 已发送但是未确认的队列大小,默认1024,为0不限制,如果不为0,当达到max_send_queue_size后,rdp_session_send将会阻塞
     ui16 max_recv_queue_size;   // 接收队列最大大小,默认1024,为0不限制,如果不为0,接收队列(由于数据包到达先后顺序问题)中数据包数量达到此值时,将拒绝接收新数据包
     ui16 in_session_hash_size;  // 传入会话hash大小,默认1
+
+    //on_connect 传出连接回调,如果不设置此回调,将不允许传出
+    void(__cdecl*on_connect)(const rdp_on_connect_param* param);
+    //on_before_accept 接受传入连接前,会调用此回调,可以用来过滤连接,可以为空;返回false将拒绝此连接请求(不会响应请求端)
+    bool(__cdecl*on_before_accept)(const rdp_on_before_accept_param* param);
+    //on_accept 传入连接回调,如果不设置此回调,将不允许传入
+    void(__cdecl*on_accept)(const rdp_on_accept_param* param);
+    //on_disconnect 连接断开回调,必须设置
+    void(__cdecl*on_disconnect)(const rdp_on_disconnect_param* param);
+    //on_recv 数据接收回调,必须设置
+    void(__cdecl*on_recv)(const rdp_on_recv_param* param);
+    //on_send 连接,不可靠的数据接收回调,该类型数据的发送使用rdp_session_send
+    void(__cdecl*on_send)(const rdp_on_send_param* param);
+    //on_udp_recv 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
+    void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param* param);
 } rdp_socket_create_param;
 
 #endif

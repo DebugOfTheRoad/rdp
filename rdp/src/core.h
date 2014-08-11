@@ -27,5 +27,5 @@ bool core_session_is_in_come(RDPSESSIONID session_id);
 
 i32 core_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16 buf_len);
 
-i32 core_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port);
+i32 core_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32* iplen, ui32* port);
 #endif

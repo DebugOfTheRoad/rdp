@@ -71,7 +71,7 @@ i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16
 {
     return core_udp_send(sock, ip, port, buf, buf_len);
 }
-i32 rdp_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port)
+i32 rdp_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32* iplen, ui32* port)
 {
     return core_addr_to(addr, addrlen, ip, iplen, port);
 }

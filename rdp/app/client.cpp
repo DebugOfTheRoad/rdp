@@ -13,11 +13,12 @@ static void __cdecl on_connect(const rdp_on_connect_param* param)
 {
     printf("on_connect  %d\n", param->err);
 }
-static void __cdecl on_accept(const rdp_on_accept* param)
+static void __cdecl on_accept(const rdp_on_accept_param* param)
 {
     char ip[32] = { 0 };
+    ui32 len = 32;
     ui32 port = 0;
-    rdp_addr_to(param->addr, param->addrlen, ip, 32, &port);
+    rdp_addr_to(param->addr, param->addrlen, ip, &len, &port);
     printf("on_accept   %s:%d\n", ip, port);
 }
 static void __cdecl on_disconnect(const rdp_on_disconnect_param* param)
@@ -48,12 +49,7 @@ int client()
     startup_param.max_sock = 1;
     startup_param.recv_thread_num = 1;
     startup_param.recv_buf_size = 4 * 1024;
-    startup_param.on_connect = on_connect;
-    startup_param.on_accept = on_accept;
-    startup_param.on_disconnect = on_disconnect;
-    startup_param.on_recv = on_recv;
-    startup_param.on_send = on_send;
-    startup_param.on_udp_recv = on_udp_recv;
+    
     i32 ret = rdp_startup(&startup_param);
     if (ret < 0) {
         return ret;
@@ -63,7 +59,13 @@ int client()
     socket_create_param.is_v4 = true;
     socket_create_param.in_session_hash_size = 1;
     socket_create_param.heart_beat_timeout = 60;
-    
+    socket_create_param.on_connect = on_connect;
+    socket_create_param.on_accept = on_accept;
+    socket_create_param.on_disconnect = on_disconnect;
+    socket_create_param.on_recv = on_recv;
+    socket_create_param.on_send = on_send;
+    socket_create_param.on_udp_recv = on_udp_recv;
+
     RDPSOCKET sock = 0;
     ret = rdp_socket_create(&socket_create_param, &sock);
     if (ret < 0) {

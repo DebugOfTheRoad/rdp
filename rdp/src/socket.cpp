@@ -141,6 +141,10 @@ i32 Socket::listen()
 {
     i32 ret = RDPERROR_SUCCESS;
     do {
+        if (!create_param_.on_accept) {
+            ret = RDPERROR_SOCKET_ONACCEPTNOTSET;
+            break;
+        }
         //检查当前状态
         if (state_ != RDPSOCKETSTATUS_BINDED) {
             ret = RDPERROR_SOCKET_BADSTATE;
@@ -154,6 +158,10 @@ i32 Socket::connect(const char* ip, ui32 port, ui32 timeout, const ui8* buf, ui1
 {
     i32 ret = RDPERROR_SUCCESS;
     do {
+        if (!create_param_.on_connect) {
+            ret = RDPERROR_SOCKET_ONCONNECTNOTSET;
+            break;
+        }
         //检查当前状态
         if (state_ != RDPSOCKETSTATUS_BINDED &&
                 state_ != RDPSOCKETSTATUS_LISTENING) {
@@ -190,6 +198,10 @@ i32 Socket::udp_send(const char* ip, ui32 port, const ui8* buf, ui16 buf_len)
     i32 ret = RDPERROR_SUCCESS;
 
     do {
+        if (!create_param_.on_udp_recv) {
+            ret = RDPERROR_SOCKET_ONUDPRECVNOTSET;
+            break;
+        }
         if (state_ != RDPSOCKETSTATUS_BINDED &&
                 state_ != RDPSOCKETSTATUS_LISTENING) {
             ret = RDPERROR_SOCKET_BADSTATE;
@@ -289,14 +301,6 @@ i32 socket_startup(rdp_startup_param* param)
 {
     i32 ret = RDPERROR_SUCCESS;
     do {
-        if (!param->on_disconnect) {
-            ret = RDPERROR_SOCKET_ONDISCONNECTNOTSET;
-            break;
-        }
-        if (!param->on_recv) {
-            ret = RDPERROR_SOCKET_ONRECVNOTSET;
-            break;
-        }
         if (param->version != RDP_SDK_VERSION) {
             ret = RDPERROR_UNKNOWN;
             break;
@@ -361,6 +365,15 @@ i32 socket_create(rdp_socket_create_param* param, Socket** socket, mutex_handle&
 {
     i32 ret = RDPERROR_SUCCESS;
     do {
+        if (!param->on_disconnect) {
+            ret = RDPERROR_SOCKET_ONDISCONNECTNOTSET;
+            break;
+        }
+        if (!param->on_recv) {
+            ret = RDPERROR_SOCKET_ONRECVNOTSET;
+            break;
+        }
+
         Socket* so = 0;
         for (ui16 i = 0; i < s_startup_param.max_sock; ++i) {
             Socket& sock = s_socket_list[i];

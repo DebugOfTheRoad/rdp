@@ -45,7 +45,7 @@ RDP_API bool rdp_session_is_in_come(RDPSESSIONID session_id);
 
 RDP_API i32 rdp_udp_send(RDPSOCKET sock, const char* ip, ui32 port, const ui8* buf, ui16 buf_len);
 
-RDP_API i32 rdp_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32 iplen, ui32* port);
+RDP_API i32 rdp_addr_to(const sockaddr* addr, ui32 addrlen, char* ip, ui32* iplen, ui32* port);
 #ifdef __cplusplus
 }
 #endif

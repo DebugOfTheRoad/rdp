@@ -266,7 +266,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             //printf("protocol check protocol header failed\n");
             break;
         }
-        const rdp_startup_param& sparam = socket_get_startup_param();
+        const rdp_socket_create_param& sparam = socket_->get_create_param();
 
         if (ph->protocol == proto_udp_data) {
             if (sparam.on_udp_recv) {
@@ -307,7 +307,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             sid._sid.unused = 0;
             sid._sid.id = in_come_id_++;
 
-            rdp_on_before_accept param;
+            rdp_on_before_accept_param param;
             param.sock = socket_->get_rdpsocket();
             param.session_id = sid.sid;
             param.addr = result->addr;
@@ -330,8 +330,16 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             in_come_session_id_list_.insert(sid._sid.id, sess);
             in_come_session_addr_list_.insert(addrkey, sess);
 
+            rdp_on_accept_param aparam;
+            aparam.sock = socket_->get_rdpsocket();
+            aparam.session_id = sid.sid;
+            aparam.addr = result->addr;
+            aparam.addrlen = socket_api_addr_len(result->addr);
+            aparam.buf = p->data_size != 0 ? (ui8*)(p + 1) : 0;
+            aparam.buf_len = p->data_size;
+
             //投递accept给上层
-            sparam.on_accept(&param);
+            sparam.on_accept(&aparam);
         }
 
         //无效回话
