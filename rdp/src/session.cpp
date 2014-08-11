@@ -429,11 +429,12 @@ void Session::on_handle_ack(ui32* seq_num_ack, ui8 seq_num_ack_count)
 
     if (sparam.on_send) {
         rdp_on_send_param param;
+        param.userdata = sparam.userdata;
         param.err = 0;
         param.sock = manager_->get_socket()->get_rdpsocket();
         param.session_id = session_id_.sid;
         param.local_send_queue_size = send_buffer_list_.size();
-        param.peer_window_size_ = peer_window_size_;
+        param.peer_window_size = peer_window_size_;
 
         sparam.on_send(&param);
     }
@@ -460,6 +461,7 @@ void Session::on_handle_connect_ack(protocol_connect_ack* p)
     state_ = RDPSESSIONSTATUS_CONNECTED;
 
     rdp_on_connect_param param;
+    param.userdata = sparam.userdata;
     param.sock = manager_->get_socket()->get_rdpsocket();
     param.err = 0;
     param.session_id = session_id_.sid;
@@ -473,6 +475,7 @@ void Session::on_handle_disconnect(protocol_disconnect* p)
     state_ = RDPSESSIONSTATUS_INIT;
 
     rdp_on_disconnect_param param;
+    param.userdata = sparam.userdata;
     param.err = RDPERROR_SUCCESS;
     param.reason = p->reason;
     param.sock = manager_->get_socket()->get_rdpsocket();
@@ -491,6 +494,7 @@ void Session::on_handle_data(protocol_data* p)
     const rdp_socket_create_param& sparam = manager_->get_socket()->get_create_param();
 
     rdp_on_recv_param param;
+    param.userdata = sparam.userdata;
     param.sock = manager_->get_socket()->get_rdpsocket();
     param.session_id = session_id_.sid;
     param.buf = (ui8*)(p + 1);
@@ -506,6 +510,7 @@ void Session::on_handle_data_noack(protocol_data_noack* p)
     const rdp_socket_create_param& sparam = manager_->get_socket()->get_create_param();
 
     rdp_on_recv_param param;
+    param.userdata = sparam.userdata;
     param.sock = manager_->get_socket()->get_rdpsocket();
     param.session_id = session_id_.sid;
     param.buf = (ui8*)(p + 1);
@@ -532,6 +537,7 @@ void Session::on_update(const timer_val& now)
                 state_ = RDPSESSIONSTATUS_INIT;
 
                 rdp_on_disconnect_param dparam;
+                dparam.userdata = scparam.userdata;
                 dparam.err = RDPERROR_SESSION_HEARTBEATTIMEOUT;
                 dparam.reason = 0;
                 dparam.sock = manager_->get_socket()->get_rdpsocket();
@@ -546,8 +552,9 @@ void Session::on_update(const timer_val& now)
         }
 
         rdp_on_send_param send_param;
+        send_param.userdata = scparam.userdata;
         send_param.sock = manager_->get_socket()->get_rdpsocket();
-        send_param.peer_window_size_ = 0;
+        send_param.peer_window_size = 0;
 
         for (send_buffer_list::iterator it = send_buffer_list_.begin();
                 it != send_buffer_list_.end();) {
@@ -571,6 +578,7 @@ void Session::on_update(const timer_val& now)
                     state_ = RDPSESSIONSTATUS_INIT;
 
                     rdp_on_connect_param cparam;
+                    cparam.userdata = scparam.userdata;
                     cparam.err = ret != sb->buf.length ? ret : RDPERROR_SESSION_CONNTIMEOUT;
                     cparam.sock = send_param.sock;
                     cparam.session_id = sb->session_id;

@@ -273,7 +273,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
                 protocol_udp_data* p = (protocol_udp_data*)ph;
 
                 rdp_on_udp_recv_param param;
-
+                param.userdata = sparam.userdata;
                 param.sock = socket_->get_rdpsocket();
                 param.addr = result->addr;
                 param.addrlen = socket_api_addr_len(result->addr);
@@ -308,6 +308,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             sid._sid.id = in_come_id_++;
 
             rdp_on_before_accept_param param;
+            param.userdata = sparam.userdata;
             param.sock = socket_->get_rdpsocket();
             param.session_id = sid.sid;
             param.addr = result->addr;
@@ -331,6 +332,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             in_come_session_addr_list_.insert(addrkey, sess);
 
             rdp_on_accept_param aparam;
+            aparam.userdata = sparam.userdata;
             aparam.sock = socket_->get_rdpsocket();
             aparam.session_id = sid.sid;
             aparam.addr = result->addr;
