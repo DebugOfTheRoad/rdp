@@ -435,7 +435,7 @@ void Session::on_handle_ack(ui32* seq_num_ack, ui8 seq_num_ack_count)
         param.local_send_queue_size = send_buffer_list_.size();
         param.peer_window_size_ = peer_window_size_;
 
-        sparam.on_send(param);
+        sparam.on_send(&param);
     }
 }
 void Session::on_handle_ctrl(protocol_ctrl* p)
@@ -464,7 +464,7 @@ void Session::on_handle_connect_ack(protocol_connect_ack* p)
     param.err = 0;
     param.session_id = session_id_.sid;
 
-    sparam.on_connect(param);
+    sparam.on_connect(&param);
 }
 void Session::on_handle_disconnect(protocol_disconnect* p)
 {
@@ -478,7 +478,7 @@ void Session::on_handle_disconnect(protocol_disconnect* p)
     param.sock = manager_->get_socket()->get_rdpsocket();
     param.session_id = session_id_.sid;
 
-    sparam.on_disconnect(param);
+    sparam.on_disconnect(&param);
 }
 void Session::on_handle_heartbeat(protocol_heartbeat* p)
 {
@@ -499,7 +499,7 @@ void Session::on_handle_data(protocol_data* p)
     ui32 seq_num_ack[1] = { p->seq_num };
     ack(seq_num_ack, _countof(seq_num_ack));
 
-    sparam.on_recv(param);
+    sparam.on_recv(&param);
 }
 void Session::on_handle_data_noack(protocol_data_noack* p)
 {
@@ -511,7 +511,7 @@ void Session::on_handle_data_noack(protocol_data_noack* p)
     param.buf = (ui8*)(p + 1);
     param.buf_len = p->data_size;
     //no_ack类的数据包,直接提交给上层服务
-    sparam.on_recv(param);
+    sparam.on_recv(&param);
 }
 void Session::on_update(const timer_val& now)
 {
@@ -537,7 +537,7 @@ void Session::on_update(const timer_val& now)
                 dparam.reason = 0;
                 dparam.sock = manager_->get_socket()->get_rdpsocket();
                 dparam.session_id = session_id_.sid;
-                sparam.on_disconnect(dparam);
+                sparam.on_disconnect(&dparam);
                 break;
             }
         }
@@ -575,7 +575,7 @@ void Session::on_update(const timer_val& now)
                     cparam.err = ret != sb->buf.length ? ret : RDPERROR_SESSION_CONNTIMEOUT;
                     cparam.sock = send_param.sock;
                     cparam.session_id = sb->session_id;
-                    sparam.on_connect(cparam);
+                    sparam.on_connect(&cparam);
 
                     break;
                 }
@@ -588,7 +588,7 @@ void Session::on_update(const timer_val& now)
                     send_param.err = ret;
                     send_param.session_id = sb->session_id;
                     send_param.local_send_queue_size = send_buffer_list_.size();
-                    sparam.on_send(send_param);
+                    sparam.on_send(&send_param);
                 }
 
                 buffer_destroy(sb->buf);

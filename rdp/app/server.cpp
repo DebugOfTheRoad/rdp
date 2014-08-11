@@ -6,30 +6,30 @@
 #endif
 
 
-static void __cdecl on_connect(const rdp_on_connect_param& param)
+static void __cdecl on_connect(const rdp_on_connect_param* param)
 {
-    printf("on_connect  %d\n", param.err);
+    printf("on_connect  %d\n", param->err);
 }
-static void __cdecl on_accept(const rdp_on_accept& param)
+static void __cdecl on_accept(const rdp_on_accept* param)
 {
     char ip[32] = { 0 };
     ui32 port = 0;
-    rdp_addr_to(param.addr, param.addrlen, ip, 32, &port);
+    rdp_addr_to(param->addr, param->addrlen, ip, 32, &port);
     printf("on_accept   %s:%d\n", ip, port);
 }
-static void __cdecl on_disconnect(const rdp_on_disconnect_param& param)
+static void __cdecl on_disconnect(const rdp_on_disconnect_param* param)
 {
-    printf("on_disconnect %d\n", param.err);
+    printf("on_disconnect %d\n", param->err);
 }
-static void __cdecl on_recv(const rdp_on_recv_param& param)
+static void __cdecl on_recv(const rdp_on_recv_param* param)
 {
-    //printf("on_recv %d, %d\n", err, buf_len);
+    //printf("on_recv %d, %d\n", param->err, buf_len);
 }
-static  void __cdecl on_send(const rdp_on_send_param& param)
+static  void __cdecl on_send(const rdp_on_send_param* param)
 {
-    // printf("on_send %d, %d, %d\n", err, local_send_queue_size, peer_unused_recv_queue_size);
+    // printf("on_send %d\n", param->err);
 }
-static void __cdecl on_udp_recv(const rdp_on_udp_recv_param& param)
+static void __cdecl on_udp_recv(const rdp_on_udp_recv_param* param)
 {
 
 }

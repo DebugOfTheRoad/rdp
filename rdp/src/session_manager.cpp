@@ -280,7 +280,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
                 param.buf = p->data_size != 0 ? (ui8*)(++p) : 0;
                 param.buf_len = p->data_size;
 
-                sparam.on_udp_recv(param);
+                sparam.on_udp_recv(&param);
             }
 
             break;
@@ -316,7 +316,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             param.buf_len = p->data_size;
             //过滤连接请求
             if (sparam.on_before_accept) {
-                if (!sparam.on_before_accept(param)) {
+                if (!sparam.on_before_accept(&param)) {
                     break;
                 }
             }
@@ -331,7 +331,7 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             in_come_session_addr_list_.insert(addrkey, sess);
 
             //投递accept给上层
-            sparam.on_accept(param);
+            sparam.on_accept(&param);
         }
 
         //无效回话

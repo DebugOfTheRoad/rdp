@@ -134,19 +134,19 @@ typedef struct rdp_startup_param {
     ui32 recv_buf_size;   // 数据接收缓冲区大小:传递给recvfrom的缓冲区大小,默认4*1024,此值影响数据包最大能接收的大小
     
     //on_connect 传出连接回调,如果不设置此回调,将不允许传出
-    void(__cdecl*on_connect)(const rdp_on_connect_param& param);
+    void(__cdecl*on_connect)(const rdp_on_connect_param* param);
     //on_before_accept 接受传入连接前,会调用此回调,可以用来过滤连接,可以为空;返回false将拒绝此连接请求(不会响应请求端)
-    bool(__cdecl*on_before_accept)(const rdp_on_before_accept& param);
+    bool(__cdecl*on_before_accept)(const rdp_on_before_accept* param);
     //on_accept 传入连接回调,如果不设置此回调,将不允许传入
-    void(__cdecl*on_accept)(const rdp_on_accept& param);
+    void(__cdecl*on_accept)(const rdp_on_accept* param);
     //on_disconnect 连接断开回调,必须设置
-    void(__cdecl*on_disconnect)(const rdp_on_disconnect_param& param);
+    void(__cdecl*on_disconnect)(const rdp_on_disconnect_param* param);
     //on_recv 数据接收回调,必须设置
-    void(__cdecl*on_recv)(const rdp_on_recv_param& param);
+    void(__cdecl*on_recv)(const rdp_on_recv_param* param);
     //on_send 连接,不可靠的数据接收回调,该类型数据的发送使用rdp_session_send
-    void(__cdecl*on_send)(const rdp_on_send_param& param);
+    void(__cdecl*on_send)(const rdp_on_send_param* param);
     //on_udp_recv 非连接,不可靠的数据接收回调,该类型数据的发送使用rdp_udp_send
-    void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param& param);
+    void(__cdecl*on_udp_recv)(const rdp_on_udp_recv_param* param);
     //ip地址hash函数,可以为空
     ui32(__cdecl*on_hash_addr)(const sockaddr* addr, ui32 addrlen);
 } rdp_startup_param;
