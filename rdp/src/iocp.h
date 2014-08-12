@@ -15,6 +15,7 @@ i32 iocp_destroy();
 i32 iocp_attach(ui8 slot, SOCKET sock, bool v4);
 i32 iocp_detach(SOCKET sock);
 
+i32 iocp_recv(ui32 timeout);
 #endif
 
 #endif

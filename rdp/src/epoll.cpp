@@ -103,6 +103,10 @@ i32 epoll_detach(SOCKET sock)
 
     return ret;
 }
+i32 epoll_recv(ui32 timeout)
+{
+    return 0;
+}
 void* __cdecl recv_thread_proc(thread_handle handle)
 {
     thread_info* ti = thread_get_thread_info(handle);
@@ -113,7 +117,6 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     timer_val now = { 0 };
     recv_result result = {0};
     
-
     epoll_event* ev = new epoll_event[param.max_sock];
 
     while (ti->state != thread_state_quit) {
@@ -161,5 +164,6 @@ void* __cdecl recv_thread_proc(thread_handle handle)
     delete []ev;
     return 0;
 }
+
 
 #endif

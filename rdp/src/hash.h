@@ -6,12 +6,12 @@
 #include "config.h"
 #include "alloc.h"
 
-template<typename Key, typename Value>
+template<typename Key, typename Value, 
+    typename ui32(*hash_key_id)(Key const&),
+    typename bool(*hash_key_cmp)(Key const&, Key const&)>
 class Hash
 {
 public:
-    typedef ui32(*hash_key_id)(const Key& key);
-    typedef bool(*hash_key_cmp)(const Key& key1, const Key& key2);
     typedef struct Bucket {
         Key key_;
         Value value_;
@@ -21,15 +21,13 @@ public:
 public:
     Hash() :
         bucket_(0),
-        hash_size_(0),
-        hash_id_(0) {
+        hash_size_(0)
+    {
     }
     ~Hash() {
         destroy();
     }
-    void create(int size, hash_key_id id, hash_key_cmp cmp) {
-        hash_id_ = id;
-        hash_cmp_ = cmp;
+    void create(int size) {
         bucket_ = new Bucket*[size];
 
         for (int i = 0; i < size; ++i){
@@ -50,17 +48,16 @@ public:
         delete[] bucket_;
         hash_size_ = 0;
         bucket_ = 0;
-        hash_id_ = 0;
     }
     ui32 size(){
         return hash_size_;
     }
     bool find(const Key& key, Value& value) {
-        ui32 id = hash_id_(key);
+        ui32 id = hash_key_id(key);
         Bucket* b = bucket_[id % hash_size_];
 
         while (b) {
-            if (hash_cmp_(key, b->key_)){
+            if (hash_key_cmp(key, b->key_)){
                 value = b->value_;
                 return true;
             }
@@ -70,7 +67,7 @@ public:
         return false;
     }
     Bucket* get(const Key& key){
-        ui32 id = hash_id_(key);
+        ui32 id = hash_key_id(key);
         return bucket_[id % hash_size_];
     }
     Bucket* get_at(ui32 id){
@@ -80,7 +77,7 @@ public:
         return bucket_[id % hash_size_];
     }
     void insert(const Key& key, Value value) {
-        ui32 id = hash_id_(key);
+        ui32 id = hash_key_id(key);
         Bucket* b = bucket_[id % hash_size_];
 
         Bucket* n = alloc_new_object<Bucket>();
@@ -92,12 +89,12 @@ public:
     }
 
     bool remove(const Key& key, Value& value) {
-        ui32 id = hash_id_(key);
+        ui32 id = hash_key_id(key);
         Bucket* b = bucket_[id % hash_size_];
         Bucket* p = 0;
 
         while (b) {
-            if (hash_cmp_(key , b->key_)) {
+            if (hash_key_cmp(key, b->key_)) {
                 if (!p){
                     bucket_[id % hash_size_] = b->next_;
                 }
@@ -116,12 +113,12 @@ public:
         return false;
     }
     bool remove(const Key& key) {
-        ui32 id = hash_id_(key);
+        ui32 id = hash_key_id(key);
         Bucket* b = bucket_[id % hash_size_];
         Bucket* p = 0;
 
         while (b) {
-            if (hash_cmp_(key, b->key_)) {
+            if (hash_key_cmp(key, b->key_)) {
                 if (!p){
                     bucket_[id % hash_size_] = b->next_;
                 }
@@ -142,8 +139,6 @@ public:
 protected:
     Bucket     **bucket_;
     ui32         hash_size_;
-    hash_key_id  hash_id_;
-    hash_key_cmp hash_cmp_;
 private:
     Hash(const Hash&);
     Hash& operator=(const Hash&);

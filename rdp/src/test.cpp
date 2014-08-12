@@ -11,11 +11,12 @@ static void __cdecl on_connect(const rdp_on_connect_param& param)
 {
      
 }
-static void __cdecl on_accept(const rdp_on_accept& param)
+static void __cdecl on_accept(const rdp_on_accept_param& param)
 {
     char ip[32] = { 0 };
+    ui32 len = 32;
     ui32 port = 0;
-    rdp_addr_to(param.addr, param.addrlen, ip, 32, &port);
+    rdp_addr_to(param.addr, param.addrlen, ip, &len, &port);
      
 }
 static void __cdecl on_disconnect(const rdp_on_disconnect_param& param)
@@ -39,11 +40,6 @@ void test_begin()
     startup_param.recv_thread_num = 1;
     startup_param.recv_buf_size = 4 * 1024;
 
-    startup_param.on_connect = on_connect;
-    startup_param.on_accept = on_accept;
-    startup_param.on_disconnect = on_disconnect;
-    startup_param.on_recv = on_recv;
-    startup_param.on_send = on_send;
     i32 ret = rdp_startup(&startup_param);
     if (ret < 0) {
         return ;

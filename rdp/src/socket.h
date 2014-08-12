@@ -69,7 +69,7 @@ i32 socket_startup(rdp_startup_param* param);
 i32 socket_cleanup();
 i32 socket_startup_get_param(rdp_startup_param* param);
 i32 socket_create(rdp_socket_create_param* param, Socket** socket, mutex_handle& lock_out);
-
+i32 socket_recv(ui32 timeout);
 
 #ifdef PLATFORM_CONFIG_TEST
 void socket_test();

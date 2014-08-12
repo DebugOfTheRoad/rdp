@@ -19,6 +19,7 @@ i32 core_socket_close(RDPSOCKET sock);
 i32 core_socket_bind(RDPSOCKET sock, const char* ip, ui32 port);
 i32 core_socket_listen(RDPSOCKET u);
 i32 core_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout, const ui8* buf, ui16 buf_len, RDPSESSIONID* session_id);
+i32 core_socket_recv(ui32 timeout);
 
 i32 core_session_close(RDPSOCKET sock, RDPSESSIONID session_id, i32 reason);
 i32 core_session_get_state(RDPSOCKET sock, RDPSESSIONID session_id, ui32* state);

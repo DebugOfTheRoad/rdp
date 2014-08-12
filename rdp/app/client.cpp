@@ -94,8 +94,9 @@ int client()
         if ('q' == c) {
             break;
         } else if ('c' == c) {
+            char* hi = "hi,wallee";
             //FIX ip 地址为 127.*的时候,在release版下会崩溃
-            ret = rdp_socket_connect(sock, "127.0.0.1", 9000, 3000, 0, 0, &sid);
+            ret = rdp_socket_connect(sock, "127.0.0.1", 9000, 3000, (ui8*)hi, strlen(hi), &sid);
             if (ret < 0) {
                 printf("rdp_socket_connect failed %d\n", ret);
             }

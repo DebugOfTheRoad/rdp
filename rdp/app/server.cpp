@@ -40,7 +40,7 @@ int server()
     rdp_startup_param startup_param = { 0 };
     startup_param.version = RDP_SDK_VERSION;
     startup_param.max_sock = 1;
-    startup_param.recv_thread_num = 1;
+    startup_param.recv_thread_num = 0;
     startup_param.recv_buf_size = 4 * 1024;
     i32 ret = rdp_startup(&startup_param);
     if (ret < 0) {
@@ -72,8 +72,13 @@ int server()
     printf("server listen  0.0.0.0:9000\n");
     printf("press 'q' to quit\n");
     while (1) {
-        if ('q' == getchar()) {
-            break;
+        if (startup_param.recv_thread_num != 0) {
+            if ('q' == getchar()) {
+                break;
+            }
+        }
+        else{
+            rdp_socket_recv(-1);
         }
     }
     rdp_socket_close(sock);

@@ -8,8 +8,6 @@
 #include "session.h"
 #include <set>
 
-
-
 SessionManager::SessionManager()
 {
     in_come_id_ = 1;
@@ -25,11 +23,11 @@ SessionManager::~SessionManager()
 void SessionManager::create(Socket* socket, ui16 in_come_hash_size)
 {
     socket_ = socket;
-    in_come_session_id_list_.create(in_come_hash_size, hash_key_id_ui32, hash_key_cmp_ui32);
-    in_come_session_addr_list_.create(in_come_hash_size, hash_key_id_sockaddr, hash_key_cmp_sockaddr);
+    in_come_session_id_list_.create(in_come_hash_size);
+    in_come_session_addr_list_.create(in_come_hash_size);
 
-    out_come_session_id_list_.create(1, hash_key_id_ui32, hash_key_cmp_ui32);
-    out_come_session_addr_list_.create(1, hash_key_id_sockaddr, hash_key_cmp_sockaddr);
+    out_come_session_id_list_.create(1);
+    out_come_session_addr_list_.create(1);
 }
 void SessionManager::destroy()
 {
@@ -92,14 +90,11 @@ Session* SessionManager::find(const sockaddr* addr)
 {
     Session* sess = 0;
 
-    addr_key addrkey;
-    addrkey.addr = addr;
-
-    if (out_come_session_addr_list_.find(addrkey, sess)) {
+    if (out_come_session_addr_list_.find(const_cast<sockaddr*>(addr), sess)) {
         return sess;
     }
 
-    in_come_session_addr_list_.find(addrkey, sess);
+    in_come_session_addr_list_.find(const_cast<sockaddr*>(addr), sess);
 
     return sess;
 }
@@ -137,11 +132,8 @@ i32 SessionManager::connect(const char* ip, ui32 port, ui32 timeout, const ui8* 
             sess = alloc_new_object<Session>();
             sess->create(this, sid.sid, addr);
 
-            addr_key addrkey;
-            addrkey.addr = sess->get_addr();
-
             out_come_session_id_list_.insert(sid._sid.id, sess);
-            out_come_session_addr_list_.insert(addrkey, sess);
+            out_come_session_addr_list_.insert(sess->get_addr(), sess);
         }
         *session_id = sess->get_session_id();
         ret = sess->connect(timeout, buf, buf_len);
@@ -162,15 +154,11 @@ i32 SessionManager::close(RDPSESSIONID session_id, ui16 reason, bool send_discon
 
         if (sid._sid.is_in_come) {
             if (in_come_session_id_list_.remove(sid._sid.id, sess)) {
-                addr_key addrkey;
-                addrkey.addr = sess->get_addr();
-                in_come_session_addr_list_.remove(addrkey);
+                in_come_session_addr_list_.remove(sess->get_addr());
             }
         } else {
             if (out_come_session_id_list_.remove(sid._sid.id, sess)) {
-                addr_key addrkey;
-                addrkey.addr = sess->get_addr();
-                out_come_session_addr_list_.remove(addrkey);
+                out_come_session_addr_list_.remove(sess->get_addr());
             }
         }
 
@@ -325,11 +313,8 @@ void SessionManager::on_recv(thread_handle handle, recv_result* result)
             sess = alloc_new_object<Session>();
             sess->create(this, sid.sid, result->addr);
 
-            addr_key addrkey;
-            addrkey.addr = sess->get_addr();
-
             in_come_session_id_list_.insert(sid._sid.id, sess);
-            in_come_session_addr_list_.insert(addrkey, sess);
+            in_come_session_addr_list_.insert(sess->get_addr(), sess);
 
             rdp_on_accept_param aparam;
             aparam.userdata = sparam.userdata;
@@ -386,17 +371,15 @@ void SessionManager::on_update(thread_handle handle, const timer_val& now)
         in_come_bucket = in_come_bucket->next_;
     }
     if (!to_removes.empty()) {
-        addr_key addrkey;
         for (std::set<Session*>::iterator it = to_removes.begin();
                 it != to_removes.end(); ++it) {
             Session* sess = *it;
 
             sessionid sid;
             sid.sid = sess->get_session_id();
-            addrkey.addr = sess->get_addr();
 
             in_come_session_id_list_.remove(sid._sid.id);
-            in_come_session_addr_list_.remove(addrkey);
+            in_come_session_addr_list_.remove(sess->get_addr());
 
             sess->destroy();
             alloc_delete_object(sess);
@@ -414,17 +397,15 @@ void SessionManager::on_update(thread_handle handle, const timer_val& now)
         out_come_bucket = out_come_bucket->next_;
     }
     if (!to_removes.empty()) {
-        addr_key addrkey;
         for (std::set<Session*>::iterator it = to_removes.begin();
                 it != to_removes.end(); ++it) {
             Session* sess = *it;
 
             sessionid sid;
             sid.sid = sess->get_session_id();
-            addrkey.addr = sess->get_addr();
-
+ 
             out_come_session_id_list_.remove(sid._sid.id);
-            out_come_session_addr_list_.remove(addrkey);
+            out_come_session_addr_list_.remove(sess->get_addr());
 
             sess->destroy();
             alloc_delete_object(sess);

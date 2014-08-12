@@ -311,9 +311,9 @@ i32 socket_startup(rdp_startup_param* param)
         if (param->max_sock > _countof(s_socket_list)) {
             param->max_sock = (ui8)_countof(s_socket_list);
         }
-        if (param->recv_thread_num == 0) {
-            param->recv_thread_num = 1;
-        }
+        //if (param->recv_thread_num == 0) {
+        //    param->recv_thread_num = 1;
+        //}
         if (param->recv_buf_size == 0) {
             param->recv_buf_size = 4 * 1024;
         }
@@ -404,7 +404,14 @@ i32 socket_create(rdp_socket_create_param* param, Socket** socket, mutex_handle&
 
     return ret;
 }
-
+i32 socket_recv(ui32 timeout)
+{
+#ifdef PLATFORM_OS_WINDOWS
+    return iocp_recv(timeout);
+#else
+    return epoll_recv(timeout);
+#endif
+}
 void socket_recv_result_callback(thread_handle handle, recv_result* result)
 {
     do {

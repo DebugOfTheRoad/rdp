@@ -1,6 +1,8 @@
 #include "../include/rdp.h"
 #include "core.h"
 
+
+extern i32 iocp_recv(ui32 timeout);
 i32 rdp_startup(rdp_startup_param* param)
 {
     return core_startup(param);
@@ -21,6 +23,7 @@ i32 rdp_getsyserrordesc(i32 err, char* desc, ui32* desc_len)
 {
     return core_getsyserrordesc(err, desc, desc_len);
 }
+
 i32 rdp_socket_create(rdp_socket_create_param* param, RDPSOCKET* sock)
 {
     return core_socket_create(param, sock);
@@ -50,7 +53,10 @@ i32 rdp_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout, 
 {
     return core_socket_connect(sock, ip, port, timeout, buf, buf_len, session_id);
 }
-
+i32 rdp_socket_recv(ui32 timeout)
+{
+    return core_socket_recv(timeout);
+}
 i32 rdp_session_close(RDPSOCKET sock, RDPSESSIONID session_id, i32 reason)
 {
     return core_session_close(sock, session_id, reason);

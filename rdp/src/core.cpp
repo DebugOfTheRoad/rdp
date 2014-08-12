@@ -2,6 +2,7 @@
 #include "thread.h"
 #include "socket.h"
 #include "session.h"
+#include "debug.h"
  
 static bool s_init = false;
 
@@ -13,6 +14,7 @@ i32 core_startup(rdp_startup_param* param)
             ret = RDPERROR_INVALIDPARAM;
             break;
         }
+        debug_startup();
         ret = thread_startup();
         if (ret != RDPERROR_SUCCESS) {
             break;
@@ -37,6 +39,7 @@ i32 core_cleanup()
 {
     socket_cleanup();
     thread_cleanup();
+    debug_cleanup();
     return RDPERROR_SUCCESS;
 }
 i32 core_getsyserror()
@@ -234,7 +237,10 @@ i32 core_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout,
 
     return ret;
 }
-
+i32 core_socket_recv(ui32 timeout)
+{
+    return socket_recv(timeout);
+}
 i32 core_session_close(RDPSOCKET sock, RDPSESSIONID session_id, i32 reason)
 {
     i32 ret = RDPERROR_SUCCESS;

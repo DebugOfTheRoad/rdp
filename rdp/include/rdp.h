@@ -37,6 +37,7 @@ RDP_API i32 rdp_socket_close(RDPSOCKET sock);
 RDP_API i32 rdp_socket_bind(RDPSOCKET sock, const char* ip = 0, ui32 port = 0);
 RDP_API i32 rdp_socket_listen(RDPSOCKET sock);
 RDP_API i32 rdp_socket_connect(RDPSOCKET sock, const char* ip, ui32 port, ui32 timeout, const ui8* buf, ui16 buf_len, RDPSESSIONID* session_id);
+RDP_API i32 rdp_socket_recv(ui32 timeout);
 
 RDP_API i32 rdp_session_close(RDPSOCKET sock, RDPSESSIONID session_id, i32 reason);
 RDP_API i32 rdp_session_get_state(RDPSOCKET sock, RDPSESSIONID session_id, ui32* state);

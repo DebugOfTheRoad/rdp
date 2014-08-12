@@ -15,54 +15,45 @@
 #define RDPSOCKETSTATUS_NONE 0
 #define RDPSESSIONSTATUS_NONE 0
 
-struct addr_key {
-    const sockaddr* addr;
-
-    addr_key() {
-        addr = 0;
-    }
-};
-
-inline ui32 hash_key_id_ui32(const ui32& key)
+inline ui32 hash_key_id_ui32(ui32 const& key)
 {
     return key;
 }
-inline bool hash_key_cmp_ui32(const ui32& key1, const ui32& key2)
+inline bool hash_key_cmp_ui32(ui32 const& key1,  ui32 const& key2)
 {
     return key1 == key2;
 }
-inline ui32 hash_key_id_sockaddr(const addr_key& key)
+inline ui32 hash_key_id_sockaddr(sockaddr* const& key)
 {
     ui32 len = 0;
-    if (key.addr->sa_family == AF_INET6) {
+    if (key->sa_family == AF_INET6) {
         len = sizeof(sockaddr_in6);
     } else {
         len = sizeof(sockaddr_in);
     }
     const rdp_startup_param& param = socket_get_startup_param();
     if (param.on_hash_addr){
-        return param.on_hash_addr(key.addr, len);
+        return param.on_hash_addr(key, len);
     }
-    return socket_api_jenkins_one_at_a_time_hash((ui8 *)key.addr, len);
+    return socket_api_jenkins_one_at_a_time_hash((ui8 *)key, len);
 }
-inline bool hash_key_cmp_sockaddr(const addr_key& key1, const addr_key& key2)
+inline bool hash_key_cmp_sockaddr(sockaddr* const& key1, sockaddr* const& key2)
 {
-    if (key1.addr->sa_family != key2.addr->sa_family) {
+    if (key1->sa_family != key2->sa_family) {
         return false;
     }
     ui32 len = 0;
-    if (key1.addr->sa_family == AF_INET6) {
+    if (key1->sa_family == AF_INET6) {
         len = sizeof(sockaddr_in6);
     } else {
         len = sizeof(sockaddr_in);
     }
-    return socket_api_addr_is_same(key1.addr, key2.addr, len);
+    return socket_api_addr_is_same(key1, key2, len);
 }
 
 class Session;
-typedef Hash<ui32, Session*>     SessionIdList;
-typedef Hash<addr_key, Session*> SessionAddrList;
-
+typedef Hash<ui32, Session*, hash_key_id_ui32, hash_key_cmp_ui32>     SessionIdList;
+typedef Hash<sockaddr*, Session*, hash_key_id_sockaddr, hash_key_cmp_sockaddr> SessionAddrList;
 
 
 class Socket;

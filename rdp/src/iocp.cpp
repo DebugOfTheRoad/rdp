@@ -117,7 +117,7 @@ i32 iocp_attach(ui8 slot, SOCKET sock, bool v4)
             ret = RDPERROR_SYSERROR;
             break;
         }
-
+        const rdp_startup_param& param = socket_get_startup_param();
         int addrlen = ioBuffer->v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
 
         DWORD dwFlags = 0, dwRecvs = 0;
@@ -148,49 +148,48 @@ i32 iocp_detach(SOCKET sock)
     CancelIo((HANDLE)sock);
     return RDPERROR_SUCCESS;
 }
-void* __cdecl recv_thread_proc(thread_handle handle)
+i32 iocp_recv(ui32 timeout)
 {
-    thread_info* ti = thread_get_thread_info(handle);
+    i32 ret = RDPERROR_SUCCESS;
 
     DWORD dwTransferd = 0;
-    PULONG_PTR   CompletionKey   = NULL;
-    LPOVERLAPPED lpOverlapped    = NULL;
+    PULONG_PTR   CompletionKey = NULL;
+    LPOVERLAPPED lpOverlapped = NULL;
     DWORD dwLastError = 0;
 
     sockaddr_in6 addr = { 0 };
-    timer_val now = {0};
+    timer_val now = { 0 };
     recv_result result = { 0 };
-    
-    while (ti->state != thread_state_quit) {
+
+    do {
         BOOL bRet = GetQueuedCompletionStatus(s_iocp,
-                                              &dwTransferd,
-                                              (PULONG_PTR)&CompletionKey,
-                                              &lpOverlapped, 1/*INFINITE*/);
-        if (ti->state == thread_state_quit) {
+            &dwTransferd,
+            (PULONG_PTR)&CompletionKey,
+            &lpOverlapped, timeout/*INFINITE*/);
+
+        if (!s_recv_result_callback || !s_recv_result_timeout_callback) {
             break;
         }
-        if (!s_recv_result_callback || !s_recv_result_timeout_callback){
-            break;
-        }
+
         iocp_buffer* ioBuffer = CONTAINING_RECORD(lpOverlapped, iocp_buffer, ol);
         now = timer_get_current_time();
         if (!bRet) {
             dwLastError = GetLastError();
             if (WAIT_TIMEOUT == dwLastError) {
-                s_recv_result_timeout_callback(handle, now);
+                s_recv_result_timeout_callback(0, now);
             }
-            else if (ERROR_OPERATION_ABORTED == dwLastError){
+            else if (ERROR_OPERATION_ABORTED == dwLastError) {
                 iocp_destroy_buffer(ioBuffer);
             }
-            else if (ERROR_PORT_UNREACHABLE == dwLastError){
-                 
+            else if (ERROR_PORT_UNREACHABLE == dwLastError) {
+
             }
-            else if (ERROR_MORE_DATA == dwLastError){
+            else if (ERROR_MORE_DATA == dwLastError) {
             }
-            continue;
+            break;
         }
         if (!ioBuffer) {
-            continue;
+            break;
         }
 
         if (ioBuffer->op == iocp_opertion_recv) {
@@ -202,7 +201,7 @@ void* __cdecl recv_thread_proc(thread_handle handle)
             result.buf.capcity = dwTransferd;
             result.buf.length = result.buf.capcity;
             result.now = now;
-            s_recv_result_callback(handle, &result);
+            s_recv_result_callback(0, &result);
 
             int addrlen = ioBuffer->v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
 
@@ -225,7 +224,7 @@ void* __cdecl recv_thread_proc(thread_handle handle)
                         result.buf.capcity = 0;
                         result.buf.length = 0;
                         result.now = now;
-                        s_recv_result_callback(handle, &result);
+                        s_recv_result_callback(0, &result);
                     }
                     else {
                         break;
@@ -233,7 +232,92 @@ void* __cdecl recv_thread_proc(thread_handle handle)
                 }
             }
         }
-        
+    } while (0);
+
+    return ret;
+}
+void* __cdecl recv_thread_proc(thread_handle handle)
+{
+    thread_info* ti = thread_get_thread_info(handle);
+
+    DWORD dwTransferd = 0;
+    PULONG_PTR   CompletionKey   = NULL;
+    LPOVERLAPPED lpOverlapped    = NULL;
+    DWORD dwLastError = 0;
+
+    sockaddr_in6 addr = { 0 };
+    timer_val now = {0};
+    recv_result result = { 0 };
+
+    while (ti->state != thread_state_quit) {
+        BOOL bRet = GetQueuedCompletionStatus(s_iocp,
+                                              &dwTransferd,
+                                              (PULONG_PTR)&CompletionKey,
+                                              &lpOverlapped, 1/*INFINITE*/);
+        if (ti->state == thread_state_quit) {
+            break;
+        }
+        if (!s_recv_result_callback || !s_recv_result_timeout_callback) {
+            break;
+        }
+        iocp_buffer* ioBuffer = CONTAINING_RECORD(lpOverlapped, iocp_buffer, ol);
+        now = timer_get_current_time();
+        if (!bRet) {
+            dwLastError = GetLastError();
+            if (WAIT_TIMEOUT == dwLastError) {
+                s_recv_result_timeout_callback(handle, now);
+            } else if (ERROR_OPERATION_ABORTED == dwLastError) {
+                iocp_destroy_buffer(ioBuffer);
+            } else if (ERROR_PORT_UNREACHABLE == dwLastError) {
+
+            } else if (ERROR_MORE_DATA == dwLastError) {
+            }
+            continue;
+        }
+        if (!ioBuffer) {
+            continue;
+        }
+
+        if (ioBuffer->op == iocp_opertion_recv) {
+            memcpy(&addr, ioBuffer->addr, ioBuffer->addr->sa_family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
+            result.slot = ioBuffer->slot;
+            result.sock = ioBuffer->socket;
+            result.addr = ioBuffer->addr;
+            result.buf.ptr = (ui8*)ioBuffer->buf.buf;
+            result.buf.capcity = dwTransferd;
+            result.buf.length = result.buf.capcity;
+            result.now = now;
+            s_recv_result_callback(handle, &result);
+
+            int addrlen = ioBuffer->v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+
+            DWORD dwFlags = 0, dwRecvs = 0;
+            int ret = WSARecvFrom(ioBuffer->socket,
+                                  &ioBuffer->buf, 1,
+                                  &dwRecvs, &dwFlags,
+                                  ioBuffer->addr,
+                                  &addrlen,
+                                  (LPOVERLAPPED)ioBuffer, NULL);
+
+            if (ret == SOCKET_ERROR)  {
+                dwLastError = GetLastError();
+
+                if (WSA_IO_PENDING != dwLastError) {
+                    if (WSAECONNRESET == dwLastError) {
+                        result.sock = ioBuffer->socket;
+                        result.addr = (sockaddr*)&addr;
+                        result.buf.ptr = (ui8*)ioBuffer->buf.buf;
+                        result.buf.capcity = 0;
+                        result.buf.length = 0;
+                        result.now = now;
+                        s_recv_result_callback(handle, &result);
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
     }
 
     return 0;
