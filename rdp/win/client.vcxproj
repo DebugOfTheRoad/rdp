@@ -119,7 +119,7 @@ _LIB;
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 _DEBUG;
 _CONSOLE;
 _LIB;
@@ -169,7 +169,7 @@ _LIB;
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 NDEBUG;
 _CONSOLE;
 _LIB;

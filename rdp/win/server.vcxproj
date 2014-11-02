@@ -119,14 +119,13 @@ _LIB;
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 _DEBUG;
 _CONSOLE;
 _LIB;
 %(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../deps/pthread-2.9.1/include;
-</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../deps/pthread-2.9.1/include;</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -169,12 +168,14 @@ _LIB;
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 NDEBUG;
 _CONSOLE;
 _LIB;
 %(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>
+      </AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

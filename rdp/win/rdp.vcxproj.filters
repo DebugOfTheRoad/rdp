@@ -60,6 +60,9 @@
     <ClCompile Include="..\src\session_manager.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\debug.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\alloc.h">
@@ -120,6 +123,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\hash.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\debug.h">
       <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>

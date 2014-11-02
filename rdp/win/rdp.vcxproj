@@ -116,20 +116,19 @@ _DLL;RDP_EXPORTS;
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 _DEBUG;
 _CONSOLE;
 _DLL;RDP_EXPORTS;
 %(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>../../deps/pthread-2.9.1/include;
-</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../../deps/pthread-2.9.1/include;</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>../../deps\pthread-2.9.1\lib\x86</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>../../deps\pthread-2.9.1\lib\x86;</AdditionalLibraryDirectories>
       <AdditionalDependencies>pthreadVC2.lib;
 %(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>$(SolutionDir)\bin64\$(Configuration)\$(TargetName)$(TargetExt)</OutputFile>
@@ -165,7 +164,7 @@ DLL;RDP_EXPORTS;
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
-      <PreprocessorDefinitions>WIN32;
+      <PreprocessorDefinitions>WIN64;
 NDEBUG;
 _CONSOLE;
 DLL;RDP_EXPORTS;
@@ -184,6 +183,7 @@ DLL;RDP_EXPORTS;
     <ClCompile Include="..\src\alloc.cpp" />
     <ClCompile Include="..\src\buffer.cpp" />
     <ClCompile Include="..\src\core.cpp" />
+    <ClCompile Include="..\src\debug.cpp" />
     <ClCompile Include="..\src\epoll.cpp" />
     <ClCompile Include="..\src\iocp.cpp" />
     <ClCompile Include="..\src\protocol.cpp" />
@@ -207,6 +207,7 @@ DLL;RDP_EXPORTS;
     <ClInclude Include="..\src\alloc.h" />
     <ClInclude Include="..\src\buffer.h" />
     <ClInclude Include="..\src\core.h" />
+    <ClInclude Include="..\src\debug.h" />
     <ClInclude Include="..\src\epoll.h" />
     <ClInclude Include="..\src\hash.h" />
     <ClInclude Include="..\src\iocp.h" />
